@@ -73,7 +73,7 @@ func (P PSQLPostStore) UpdateById(post *models.Post) error {
 		    Created, 
 		    (select f.Slug from Posts p join Threads t on t.Id = p.Thread join Forums f on f.Id = t.Forum where PostId(p.*) = $2), 
 		    IsEdited, Message, PostPar(p.*), Thread;
-`, post.Message, post.Id, post.Author)
+`, post.Message, post.Id)
 
 	if err := row.Scan(&post.Author, &post.Created, &post.Forum, &post.IsEdited, &post.Message, &post.Parent, &post.Thread); err != nil {
 		return errors.Wrap(err, prefix)
