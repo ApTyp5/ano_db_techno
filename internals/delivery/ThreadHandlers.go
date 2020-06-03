@@ -43,6 +43,7 @@ func (m ThreadHandlerManager) AddPosts() RequestHandler {
 
 		if ctx.SetStatusCode(m.uc.AddPosts(&thread, &posts, &err)); err != nil {
 			logs.Error(errors.Wrap(err, prefix))
+			args.SetBodyError(err, ctx)
 			return
 		}
 
@@ -66,6 +67,7 @@ func (m ThreadHandlerManager) Details() RequestHandler {
 
 		if ctx.SetStatusCode(m.uc.Details(&thread, &err)); err != nil {
 			logs.Error(errors.Wrap(err, prefix))
+			args.SetBodyError(err, ctx)
 			return
 		}
 
@@ -94,6 +96,7 @@ func (m ThreadHandlerManager) Edit() RequestHandler {
 
 		if ctx.SetStatusCode(m.uc.Edit(&thread, &err)); err != nil {
 			logs.Error(errors.Wrap(err, prefix))
+			args.SetBodyError(err, ctx)
 			return
 		}
 
@@ -112,6 +115,7 @@ func (m ThreadHandlerManager) Posts() RequestHandler {
 		if thread.Id, err = args.PathInt("slug_or_id", ctx); err != nil {
 			if thread.Slug, err = args.PathString("slug_or_id", ctx); err != nil {
 				logs.Error(errors.Wrap(errors.New("bad cast to string"), prefix))
+				args.SetBodyError(err, ctx)
 				return
 			}
 		}
@@ -125,6 +129,7 @@ func (m ThreadHandlerManager) Posts() RequestHandler {
 
 		if ctx.SetStatusCode(m.uc.Posts(&posts, &thread, &err, limit, since, sort, desc)); err != nil {
 			logs.Error(errors.Wrap(err, prefix))
+			args.SetBodyError(err, ctx)
 			return
 		}
 

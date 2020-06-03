@@ -3,7 +3,6 @@ package store
 import (
 	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/pkg/errors"
 	"strconv"
 	"strings"

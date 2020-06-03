@@ -155,21 +155,33 @@ func (P PSQLThreadStore) SelectById(thread *models.Thread) error {
 }
 
 func (P PSQLThreadStore) UpdateBySlug(thread *models.Thread) error {
+	updateRow := ""
+	if thread.Title != "" {
+		updateRow += " Title = '" + thread.Title + "' "
+	}
+	if thread.Message != "" {
+		if thread.Title != "" {
+			updateRow += " , "
+		}
+
+		updateRow += " Message = '" + thread.Message + "' "
+	}
+
 	row := P.db.QueryRow(`
-		update Threads t set Message = $1, Title = $2
-		where t.Slug = $3
+		update Threads t set `+updateRow+`
+		where t.Slug = $1
 		returning (
 		    select u.NickName 
 		    from Users u
 		        join Threads t on t.Author = u.Id
-		    where t.Slug = $3
+		    where t.Slug = $1
 		), t.Created, (
 		         select f.Slug
 		         from Forums f
 		         	join Threads t on t.Forum = f.Id
-		         where t.Slug = $3
+		         where t.Slug = $1
 		     ), t.Id, t.Message, t.Title, t.VoteNum, t.Slug; 
-`, thread.Message, thread.Title, thread.Slug)
+`, thread.Slug)
 
 	return errors.Wrap(row.Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.Id,
 		&thread.Message, &thread.Title, &thread.Votes, &thread.Slug),
@@ -177,8 +189,20 @@ func (P PSQLThreadStore) UpdateBySlug(thread *models.Thread) error {
 }
 
 func (P PSQLThreadStore) UpdateById(thread *models.Thread) error {
+	updateRow := ""
+	if thread.Title != "" {
+		updateRow += " Title = '" + thread.Title + "' "
+	}
+	if thread.Message != "" {
+		if thread.Title != "" {
+			updateRow += " , "
+		}
+
+		updateRow += " Message = '" + thread.Message + "' "
+	}
+
 	row := P.db.QueryRow(`
-		update Threads t set Message = $1, Title = $2
+		update Threads t set `+updateRow+`
 		where t.Id = $3
 		returning (
 		    select u.NickName 

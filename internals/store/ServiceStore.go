@@ -25,7 +25,7 @@ func (ss PSQLServiceStore) Status(status *models.Status) error {
 		select PostNum, ForumNum, ThreadNum, UserNum
 		from Status;
 `)
-	if err := row.Scan(status.Post, status.Forum, status.Thread, status.User); err != nil {
+	if err := row.Scan(&status.Post, &status.Forum, &status.Thread, &status.User); err != nil {
 		return errors.Wrap(err, "PSQL Service Store status:")
 	}
 
@@ -34,12 +34,12 @@ func (ss PSQLServiceStore) Status(status *models.Status) error {
 
 func (ss PSQLServiceStore) Clear() error {
 	_, err := ss.db.Exec(`
-		drop table if exists Votes;
-		drop table if exists Posts;
-		drop table if exists Threads;
-		drop table if exists Forums;
-		drop table if exists Users;
-		drop table if exists Status;
+		drop table if exists Votes cascade ;
+		drop table if exists Posts cascade ;
+		drop table if exists Threads cascade ;
+		drop table if exists Forums cascade ;
+		drop table if exists Users cascade ;
+		drop table if exists Status cascade ;
 `)
 
 	if err != nil {

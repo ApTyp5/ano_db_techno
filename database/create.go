@@ -158,12 +158,16 @@ $userNumInc$ language plpgsql;
 create or replace function postsSetIdCheckForum() returns trigger as $postsSetId$
 	begin
 	    new.IdPath := new.IdPath || array[nextval('Posts_Id_seq')::integer];
+	    
 	    if PostPar(new.*) != 0 then
+	        if (select IdPath from Posts where PostId(Posts) = PostPar(new)) is null then 
+			raise EXCEPTION 'Parent does not exists';
+			end if;
 	        if new.Thread != (select Id from Threads join Posts P on Threads.Id = P.Thread where PostId(P.*) = PostPar(new.*)) then
 				raise EXCEPTION 'Parent post was created in another thread';
 			end if;
 		end if;
-		
+	    
 		return new;
 	end;
 $postsSetId$ language plpgsql;
