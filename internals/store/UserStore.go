@@ -40,7 +40,7 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 	}
 
 	lmt := ""
-	if limit != 0 {
+	if limit > 0 {
 		lmt = " limit " + strconv.FormatInt(int64(limit), 10)
 	}
 
