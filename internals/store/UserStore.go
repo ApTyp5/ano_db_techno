@@ -80,10 +80,6 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 		*users = append(*users, user)
 	}
 
-	if len(*users) == 0 {
-		return errors.New("Forum not found")
-	}
-
 	return nil
 }
 

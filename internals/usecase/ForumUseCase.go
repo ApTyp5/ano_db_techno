@@ -87,6 +87,10 @@ func (uc RDBForumUseCase) Threads(threads *[]*models.Thread, forum *models.Forum
 func (uc RDBForumUseCase) Users(users *[]*models.User, forum *models.Forum, err *error, limit int, since string, desc bool) int {
 	prefix := "RDBForumUseCase users"
 
+	if *err = uc.fs.SelectBySlug(forum); *err != nil {
+		return 404
+	}
+
 	if *err = errors.Wrap(uc.us.SelectByForum(users, forum, limit, since, desc), prefix); *err == nil {
 		return 200
 	}
