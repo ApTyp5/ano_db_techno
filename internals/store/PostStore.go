@@ -55,7 +55,7 @@ func (P PSQLPostStore) SelectById(post *models.Post) error {
 `,
 		post.Id)
 
-	if err := row.Scan(post.Author, post.Created, post.Forum, post.IsEdited, post.Message, post.Parent, post.Thread); err != nil {
+	if err := row.Scan(&post.Author, &post.Created, &post.Forum, &post.IsEdited, &post.Message, &post.Parent, &post.Thread); err != nil {
 		return errors.Wrap(err, prefix)
 	}
 
@@ -75,7 +75,7 @@ func (P PSQLPostStore) UpdateById(post *models.Post) error {
 		    IsEdited, Message, PostPar(p.*), Thread;
 `, post.Message, post.Id, post.Author)
 
-	if err := row.Scan(post.Author, post.Created, post.Forum, post.IsEdited, post.Message, post.Parent, post.Thread); err != nil {
+	if err := row.Scan(&post.Author, &post.Created, &post.Forum, &post.IsEdited, &post.Message, &post.Parent, &post.Thread); err != nil {
 		return errors.Wrap(err, prefix)
 	}
 
