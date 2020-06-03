@@ -46,7 +46,7 @@ func (P PSQLPostStore) Count(amount *uint) error {
 func (P PSQLPostStore) SelectById(post *models.Post) error {
 	prefix := "PSQL PostStore SelectById"
 	row := P.db.QueryRow(`
-		select u.NickName, p.Created, f.Slug, p.IsEdited, p.Message, postId(p.*), p.Thread
+		select u.NickName, p.Created, f.Slug, p.IsEdited, p.Message, postPar(p.*), p.Thread
 			from Posts p
 				join Users u on p.Author = u.Id
 				join Threads t on p.Thread = t.Id
