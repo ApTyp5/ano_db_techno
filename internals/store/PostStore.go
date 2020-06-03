@@ -79,6 +79,11 @@ func (P PSQLPostStore) UpdateById(post *models.Post) error {
 		return errors.Wrap(err, prefix)
 	}
 
+	if !post.IsEdited {
+		logs.Info("NOT EDITED!!!")
+		post.IsEdited = true
+	}
+
 	return nil
 }
 
