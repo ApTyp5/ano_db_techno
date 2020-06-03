@@ -92,8 +92,8 @@ $Parent$ language plpgsql;
 create or replace function setPostIsEdited() returns trigger as $setPostIsEdited$
 	begin
 		if old.IsEdited or not (old.Message = new.Message) then
-			update Posts set IsEdited = true 
-		    	where Id = new.Id;
+			update Posts p set IsEdited = true 
+		    	where PostId(p.*) = PostId(new.*);
 		end if;
 		return new;
 	end;
