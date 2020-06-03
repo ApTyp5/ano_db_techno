@@ -24,7 +24,7 @@ func (m PostHandlerManager) Details() RequestHandler {
 	return func(ctx *RequestCtx) {
 		var (
 			prefix   = "post details handler:"
-			postFull models.PostFull
+			postFull = models.PostFull{Post: &models.Post{}}
 			err      error
 		)
 		if postFull.Post.Id, err = args.PathInt("id", ctx); err != nil {
