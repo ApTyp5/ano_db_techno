@@ -91,9 +91,8 @@ $Parent$ language plpgsql;
 
 create or replace function setPostIsEdited() returns trigger as $setPostIsEdited$
 	begin
-		if old.IsEdited or not (old.Message = new.Message) then
-			update Posts p set IsEdited = true 
-		    	where PostId(p.*) = PostId(new.*);
+		if not old.IsEdited or not (old.Message = new.Message) then
+			new.IsEdited := true;
 		end if;
 		return new;
 	end;
@@ -156,19 +155,25 @@ create or replace function userNumInc() returns trigger as $userNumInc$
 	end;
 $userNumInc$ language plpgsql;
 
-create or replace function postsSetId() returns trigger as $postsSetId$
+create or replace function postsSetIdCheckForum() returns trigger as $postsSetId$
 	begin
-		new.IdPath := new.IdPath || array[nextval('Posts_Id_seq')::integer];
+	    new.IdPath := new.IdPath || array[nextval('Posts_Id_seq')::integer];
+	    if PostPar(new.*) != 0 then
+	        if new.Thread != (select Id from Threads join Posts P on Threads.Id = P.Thread where PostId(P.*) = PostPar(new.*)) then
+				raise EXCEPTION 'Parent post was created in another thread';
+			end if;
+		end if;
+		
 		return new;
 	end;
 $postsSetId$ language plpgsql;
 
-create trigger postsSetId before insert on Posts for each row execute procedure postsSetId();
+create trigger postsSetId before insert on Posts for each row execute procedure postsSetIdCheckForum();
 create trigger postNumInc after insert on Posts for each row execute procedure postNumInc();
 create trigger threadNumInc after insert on	Threads for each row execute procedure threadNumInc();
 create trigger threadRatingCount after insert on Votes for each row execute procedure threadRatingCount();
 create trigger threadRatingRecount after update on Votes for each row execute procedure threadRatingRecount();
-create trigger setPostIsEdited after update on Posts for each row execute procedure setPostIsEdited();
+create trigger setPostIsEdited before update on Posts for each row execute procedure setPostIsEdited();
 create trigger forumNumInc after insert on Forums for each row execute procedure forumNumInc();
 create trigger userNumInc after insert on Users for each row execute procedure userNumInc();
 `)
