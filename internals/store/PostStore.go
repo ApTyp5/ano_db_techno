@@ -118,7 +118,7 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 	rows, err := P.db.Query(insertQuery + returnQuery)
 
 	if err != nil {
-		logs.Info("error", errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error"))
+		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
 	}
 	defer rows.Close()
 
