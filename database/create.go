@@ -41,7 +41,7 @@ create table Threads (
 	Forum integer references Forums(Id) not null,
 	Created timestamptz not null default now(),
 	Message text not null,
-	Slug citext null unique,
+	Slug citext null,
 	Title text not null,
 	VoteNum integer default 0 not null
 -- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
