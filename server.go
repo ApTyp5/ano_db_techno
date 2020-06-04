@@ -12,8 +12,8 @@ import (
 )
 
 func main() {
-	router := fasthttpRouter.New()
-	router = router.Group("/api")
+	init := fasthttpRouter.New()
+	router := init.Group("/api")
 	connStr := "user=docker password=docker dbname=docker sslmode=disable host=0.0.0.0"
 
 	db := database.Connect(connStr, 10) // panic
@@ -79,5 +79,5 @@ func main() {
 	}
 
 	logs.Info("server started on 5000")
-	logs.Fatal(fasthttp.ListenAndServe(":5000", router.Handler))
+	logs.Fatal(fasthttp.ListenAndServe(":5000", init.Handler))
 }
