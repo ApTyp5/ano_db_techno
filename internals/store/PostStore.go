@@ -104,7 +104,7 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				"(select Id from Threads where Slug = '"+thsl+"'),'"+
 				mess+"',"+
-				"(select Id from Posts p where postId(p.*) = "+parn+")"+
+				"(select Id from Posts p where Id = "+parn+")"+
 				")")
 		}
 	}
@@ -112,8 +112,8 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 	insertQuery := ` insert into Posts (Author, Thread, Message, Parent)
 					values` + strings.Join(valueArgs, ",")
 
-	returnQuery := ` returning PostId(Posts.*), (select f.Slug from forums f join threads t on f.id = t.forum where t.id = thread),
-                    (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, PostPar(Posts.*);`
+	returnQuery := ` returning Posts.Id, (select f.Slug from forums f join threads t on f.id = t.forum where t.id = thread),
+                    (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, Posts.Parent;`
 
 	logs.Info("QUERY:\n", insertQuery+returnQuery)
 
@@ -159,7 +159,7 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				thid+",'"+
 				mess+"',"+
-				"(select Id from Posts where PostId(Posts.*) = "+parn+")"+
+				"(select Id from Posts where Id = "+parn+")"+
 				")")
 		}
 	}
@@ -169,8 +169,8 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 					values` + strings.Join(valueArgs, ",")
 
 	returnQuery := ` 
-					returning PostId(Posts.*), (select f.Slug from forums f join threads t on f.id = t.forum where t.id = thread),
-                    (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, PostPar(Posts.*);`
+					returning Posts.Id, (select f.Slug from forums f join threads t on f.id = t.forum where t.id = thread),
+                    (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, Posts.Parent;`
 
 	rows, err := P.db.Query(insertQuery + returnQuery)
 

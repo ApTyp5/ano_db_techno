@@ -16,8 +16,8 @@ func main() {
 	router := init.Group("/api")
 	connStr := "user=docker password=docker dbname=docker sslmode=disable host=0.0.0.0"
 
-	db := database.Connect(connStr, 10) // panic
-	defer func() { _ = db.Close() }()   // panic
+	db := database.Connect(connStr, 100) // panic
+	defer func() { _ = db.Close() }()    // panic
 
 	database.DropTables(db)   // no-panic
 	database.CreateTables(db) // panic
