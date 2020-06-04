@@ -91,7 +91,7 @@ $Parent$ language plpgsql;
 
 create or replace function setPostIsEdited() returns trigger as $setPostIsEdited$
 	begin
-		if not old.IsEdited or not (old.Message = new.Message) then
+		if (not old.IsEdited) and (old.Message != new.Message) then
 			new.IsEdited := true;
 		end if;
 		return new;
@@ -160,9 +160,10 @@ create or replace function postsSetIdCheckForum() returns trigger as $postsSetId
 	    new.IdPath := new.IdPath || array[nextval('Posts_Id_seq')::integer];
 	    
 	    if PostPar(new.*) != 0 then
-	        if (select IdPath from Posts where PostId(Posts) = PostPar(new)) is null then 
-			raise EXCEPTION 'Parent does not exists';
+	        if PostPar(new.*) = -1 then
+				raise EXCEPTION 'Parent does not exists';
 			end if;
+	    
 	        if new.Thread != (select Id from Threads join Posts P on Threads.Id = P.Thread where PostId(P.*) = PostPar(new.*)) then
 				raise EXCEPTION 'Parent post was created in another thread';
 			end if;

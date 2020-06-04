@@ -3,7 +3,6 @@ package store
 import (
 	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/pkg/errors"
 	"strconv"
 )
@@ -52,8 +51,6 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 			join Users u on (u.Id = p.Author or u.Id = t.Author)
 		where f.Slug = $1 ` + sne + `
 		order by u.NickName ` + dsc + lmt + ";"
-
-	logs.Info("QUERY:\n", query)
 
 	var (
 		rows *sql.Rows

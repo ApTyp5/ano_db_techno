@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
+	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/pkg/errors"
 	"strconv"
 	"strings"
@@ -103,9 +104,9 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				"(select Id from Threads where Slug = '"+thsl+"'),'"+
 				mess+"',"+
-				"(select IdPath from Posts p where postId(p.*) = "+parn+")"+")")
+				"coalesce((select IdPath from Posts p where postId(p.*) = "+parn+"), '{-1}')"+
+				")")
 		}
-
 	}
 
 	insertQuery := ` insert into Posts (Author, Thread, Message, IdPath)
@@ -156,7 +157,7 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				thid+",'"+
 				mess+"',"+
-				"(select IdPath from Posts where Id = "+parn+")"+
+				"coalesce((select IdPath from Posts where Id = "+parn+"), '{-1}')"+
 				")")
 		}
 	}

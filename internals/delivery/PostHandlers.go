@@ -8,6 +8,7 @@ import (
 	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/pkg/errors"
 	. "github.com/valyala/fasthttp"
+	"strings"
 )
 
 type PostHandlerManager struct {
@@ -32,10 +33,11 @@ func (m PostHandlerManager) Details() RequestHandler {
 			return
 		}
 
-		related := args.QueryStringSlice(ctx)
+		related := args.QueryString("related", ctx)
 
-		if ctx.SetStatusCode(m.uc.Details(&postFull, &err, related)); err != nil {
+		if ctx.SetStatusCode(m.uc.Details(&postFull, &err, strings.Split(related, ","))); err != nil {
 			logs.Error(errors.Wrap(err, prefix))
+			args.SetBodyError(err, ctx)
 			return
 		}
 

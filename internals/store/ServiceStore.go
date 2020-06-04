@@ -34,12 +34,13 @@ func (ss PSQLServiceStore) Status(status *models.Status) error {
 
 func (ss PSQLServiceStore) Clear() error {
 	_, err := ss.db.Exec(`
-		drop table if exists Votes cascade ;
-		drop table if exists Posts cascade ;
-		drop table if exists Threads cascade ;
-		drop table if exists Forums cascade ;
-		drop table if exists Users cascade ;
-		drop table if exists Status cascade ;
+		truncate table Votes cascade ;
+		truncate table Posts cascade ;
+		truncate table Threads cascade ;
+		truncate table Forums cascade ;
+		truncate table Users cascade ;
+
+		update status set forumnum = 0, usernum = 0, postnum = 0, threadnum = 0;
 `)
 
 	if err != nil {

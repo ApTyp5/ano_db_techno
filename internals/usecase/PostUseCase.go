@@ -37,9 +37,10 @@ func (uc RDBPostUseCase) Details(postFull *models.PostFull, err *error, related 
 	}
 
 	for _, str := range related {
+
 		switch str {
 		case "user":
-			postFull.Author.NickName = postFull.Post.Author
+			postFull.Author = &models.User{NickName: postFull.Post.Author}
 			if err := uc.us.SelectByNickname(postFull.Author); err != nil {
 				logs.Error(errors.Wrap(err, "unexpected user repo error"))
 			}
@@ -64,9 +65,15 @@ func (uc RDBPostUseCase) Details(postFull *models.PostFull, err *error, related 
 }
 
 func (uc RDBPostUseCase) Edit(post *models.Post, err *error) int {
+	if post.Message == "" {
+		if *err = errors.Wrap(uc.ps.SelectById(post), "RDBPostUseCase Edit"); *err != nil {
+			return 404
+		}
+		return 200
+	}
+
 	if *err = errors.Wrap(uc.ps.UpdateById(post), "RDBPostUseCase Edit"); *err != nil {
 		return 404
 	}
-
 	return 200
 }

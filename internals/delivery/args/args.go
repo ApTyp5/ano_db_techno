@@ -86,12 +86,3 @@ func QueryBool(name string, ctx *fasthttp.RequestCtx) bool {
 	}
 	return false
 }
-
-func QueryStringSlice(ctx *fasthttp.RequestCtx) []string {
-	result := make([]string, 0, 3)
-	ctx.QueryArgs().VisitAll(func(key, value []byte) {
-		result = append(result, string(value))
-	})
-
-	return result
-}

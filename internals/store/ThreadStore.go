@@ -203,19 +203,19 @@ func (P PSQLThreadStore) UpdateById(thread *models.Thread) error {
 
 	row := P.db.QueryRow(`
 		update Threads t set `+updateRow+`
-		where t.Id = $3
+		where t.Id = $1
 		returning (
 		    select u.NickName 
 		    from Users u
 		        join Threads t on t.Author = u.Id
-		    where t.Id = $3
+		    where t.Id = $1
 		), t.Created, (
 		         select f.Slug
 		         from Forums f
 		         	join Threads t on t.Forum = f.Id
-		         where t.Id = $3
+		         where t.Id = $1
 		     ), t.Slug, t.Message, t.Title, t.VoteNum, t.slug; 
-`, thread.Message, thread.Title, thread.Id)
+`, thread.Id)
 
 	return errors.Wrap(row.Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.Slug,
 		&thread.Message, &thread.Title, &thread.Votes, &thread.Slug),
