@@ -18,6 +18,9 @@ create table Users (
 	Email citext unique not null,
 	About text null
 );
+
+create index on Users (id);
+create index on Users (NickName);
     
 create table Forums (
 	Id serial primary key,
@@ -28,6 +31,9 @@ create table Forums (
 	ThreadNum integer not null default 0,
 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
+
+create index on Forums (Id);
+create index on Forums (Slug);
 
 create table Threads (
 	Id serial primary key,
@@ -40,6 +46,9 @@ create table Threads (
 	VoteNum integer default 0 not null
 -- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
+
+create index on Threads (ID);
+create index on Threads (Slug);
 
 create table Votes (
 	Author integer references Users(Id) not null,
@@ -62,6 +71,7 @@ create table Posts (
 	Message text not null
 );
 create sequence Posts_Id_seq;
+create index on Posts (IdPath);
 
 create table Status (
     ForumNum integer,
