@@ -5,6 +5,7 @@ import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
 	"github.com/pkg/errors"
+	"strings"
 )
 
 type ThreadUseCase interface {
@@ -41,7 +42,7 @@ func (uc RDBThreadUseCase) AddPosts(thread *models.Thread, posts *[]*models.Post
 		}
 
 		if *err = errors.Wrap(uc.ps.InsertPostsByThreadSlug(thread, posts), prefix); *err != nil {
-			if errors.Cause(*err).Error()[4:8] == "null" {
+			if strings.Index(errors.Cause(*err).Error(), "author") >= 0 {
 				return 404
 			}
 			return 409
@@ -55,7 +56,7 @@ func (uc RDBThreadUseCase) AddPosts(thread *models.Thread, posts *[]*models.Post
 	}
 
 	if *err = errors.Wrap(uc.ps.InsertPostsByThreadId(thread, posts), prefix); *err != nil {
-		if errors.Cause(*err).Error()[4:8] == "null" {
+		if strings.Index(errors.Cause(*err).Error(), "author") >= 0 {
 			return 404
 		}
 		return 409
