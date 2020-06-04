@@ -13,6 +13,7 @@ import (
 
 func main() {
 	router := fasthttpRouter.New()
+	router = router.Group("/api")
 	connStr := "user=docker password=docker dbname=docker sslmode=disable host=0.0.0.0"
 
 	db := database.Connect(connStr, 10) // panic
