@@ -156,7 +156,7 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				thid+",'"+
 				mess+"',"+
-				"coalesce((select IdPath from Posts where Id = "+parn+"), '{-1}')"+
+				"coalesce((select IdPath from Posts where PostId(Posts.*) = "+parn+"), '{-1}')"+
 				")")
 		}
 	}
