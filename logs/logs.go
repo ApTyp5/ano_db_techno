@@ -1,7 +1,6 @@
 package logs
 
 import (
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -20,13 +19,13 @@ func init() {
 }
 
 func Fatal(args ...interface{}) {
-	sugar.Fatal(args...)
+	//sugar.Fatal(args...)
 }
 
 func Info(args ...interface{}) {
-	sugar.Info(args...)
+	//sugar.Info(args...)
 }
 
 func Error(err error) {
-	sugar.Info("\nerror: ", "\nmore: ", err.Error(), "\nless: ", errors.Cause(err).Error())
+	//sugar.Info("\nerror: ", "\nmore: ", err.Error(), "\nless: ", errors.Cause(err).Error())
 }
