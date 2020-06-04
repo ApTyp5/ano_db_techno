@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
+	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/pkg/errors"
 	"strconv"
 	"strings"
@@ -97,22 +98,24 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 			valueArgs = append(valueArgs, "("+
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				"(select Id from Threads where Slug = '"+thsl+"'),'"+
-				mess+"', '{}')")
+				mess+"', 0)")
 		} else {
 			valueArgs = append(valueArgs, "("+
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				"(select Id from Threads where Slug = '"+thsl+"'),'"+
 				mess+"',"+
-				"coalesce((select IdPath from Posts p where postId(p.*) = "+parn+"), '{-1}')"+
+				"(select Id from Posts p where postId(p.*) = "+parn+")"+
 				")")
 		}
 	}
 
-	insertQuery := ` insert into Posts (Author, Thread, Message, IdPath)
+	insertQuery := ` insert into Posts (Author, Thread, Message, Parent)
 					values` + strings.Join(valueArgs, ",")
 
 	returnQuery := ` returning PostId(Posts.*), (select f.Slug from forums f join threads t on f.id = t.forum where t.id = thread),
                     (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, PostPar(Posts.*);`
+
+	logs.Info("QUERY:\n", insertQuery+returnQuery)
 
 	rows, err := P.db.Query(insertQuery + returnQuery)
 
@@ -150,13 +153,13 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 			valueArgs = append(valueArgs, "("+
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				thid+",'"+
-				mess+"', '{}')")
+				mess+"', 0)")
 		} else {
 			valueArgs = append(valueArgs, "("+
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				thid+",'"+
 				mess+"',"+
-				"coalesce((select IdPath from Posts where PostId(Posts.*) = "+parn+"), '{-1}')"+
+				"(select Id from Posts where PostId(Posts.*) = "+parn+")"+
 				")")
 		}
 	}
@@ -170,6 +173,8 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
                     (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, PostPar(Posts.*);`
 
 	rows, err := P.db.Query(insertQuery + returnQuery)
+
+	logs.Info("QUERY:\n", insertQuery+returnQuery)
 
 	if err != nil {
 		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
@@ -239,6 +244,8 @@ func (P PSQLPostStore) SelectByThreadIdFlat(posts *[]*models.Post, thread *model
 		}
 	}
 
+	logs.Info("QUERY:\n", query)
+
 	if err != nil {
 		return errors.Wrap(err, "PostRepo select by thread id flat error: ")
 	}
@@ -262,51 +269,62 @@ func (P PSQLPostStore) SelectByThreadIdTree(posts *[]*models.Post, thread *model
 		hasSlug  = thread.Slug != ""
 		rows     *sql.Rows
 		err      error
+		withPart = ""
 		query    = ""
 		initPath = ""
 	)
 
-	if hasSince {
-		initPath += " (select idpath from posts p "
-		if hasSlug {
-			initPath += " where Thread = (select Id from Threads where Slug = $1) "
-		} else {
-			initPath += " where Thread = $1 "
-		}
-
-		initPath += " and postId(p.*) = $3 ) "
+	withPart += `
+			with recursive paths as (
+				select Array [Parent, Id] as path, Id, Parent 
+				from posts 
+					join threads on posts.thread = threads.id
+				where Parent = 0 `
+	if hasSlug {
+		withPart += " where posts.Thread = threads.Id and threads.slug = $1 "
+	} else {
+		withPart += " where posts.Thread = $1 "
 	}
+
+	withPart += `
+			union all
+				select paths.path || array [Id] as path, Id, Parent
+					from posts p
+			join paths on p.parent = paths.Id
+			)
+				`
 
 	query += `
 			Select u.NickName, p.Created, f.Slug, postId(p.*), p.IsEdited, p.Message, postPar(p.*), p.Thread
 				From Posts p
+				join paths ph on p.Id = ph.Id
 				join Users u on p.Author = u.Id
 				join Threads t on t.Id = p.Thread
 				join Forums f on f.Id = t.Forum
 			`
-	if hasSlug {
-		query += " where Thread = (select Id from Threads where Slug = $1) "
-	} else {
-		query += " where Thread = $1 "
-	}
 
 	if hasSince {
+
+		initPath += " (select path from paths where Id = $3) "
+
 		if desc {
-			query += " and p.IdPath < " + initPath
+			query += " where ph.Path < " + initPath
 		} else {
-			query += " and p.IdPath > " + initPath
+			query += " where ph.Path > " + initPath
 		}
 	}
 
 	if desc {
-		query += " order by p.IdPath desc "
+		query += " order by ph.Path desc "
 	} else {
-		query += " order by p.IdPath "
+		query += " order by ph.Path "
 	}
 
 	if limit != 0 {
 		query += " LIMIT $2; "
 	}
+
+	logs.Info("QUERY:\n", query)
 
 	if hasSlug {
 		if hasSince {
@@ -406,6 +424,8 @@ func (P PSQLPostStore) SelectByThreadIdParentTree(posts *[]*models.Post, thread 
 	} else {
 		query += " order by p.IdPath "
 	}
+
+	logs.Info("QUERY:\n", query)
 
 	if hasSlug {
 		if hasSince {

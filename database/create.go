@@ -58,19 +58,15 @@ create table Votes (
 	check ( voice = 1 or voice = -1)
 );
 
--- Вспомогательные процедуры:
--- PostId, PostPar
--- Вспомогательные последовательности:
--- Posts_Id_seq
 create table Posts (
-    IdPath integer[] primary key,
+    Id serial primary key ,
+    Parent integer not null ,
 	Author integer references Users(Id) not null,
 	Thread integer references Threads(Id) not null,
 	Created timestamptz not null default now(),
 	IsEdited bool default false not null,
 	Message text not null
 );
-create sequence Posts_Id_seq;
 
 create table Status (
     ForumNum integer,
@@ -82,19 +78,13 @@ insert into Status values (0, 0, 0, 0);
 
 create or replace function PostId(p Posts) returns integer as $Id$
 begin 
-	   return p.IdPath[array_length(p.IdPath, 1)];
+	   return p.Id;
 end;
 $Id$ language plpgsql;
 
 create or replace function PostPar(p Posts) returns integer as $Parent$
 begin 
-    if (array_length(p.IdPath, 1) = 1) then
-		return 0;
-		
-		
-	end if;
-    
-	return p.IdPath[array_length(p.IdPath, 1) - 1];
+    return p.Parent;
 end;
 $Parent$ language plpgsql;
 
@@ -166,14 +156,8 @@ $userNumInc$ language plpgsql;
 
 create or replace function postsSetIdCheckForum() returns trigger as $postsSetId$
 	begin
-	    new.IdPath := new.IdPath || array[nextval('Posts_Id_seq')::integer];
-	    
 	    if PostPar(new.*) != 0 then
-	        if PostPar(new.*) = -1 then
-				raise EXCEPTION 'Parent does not exists';
-			end if;
-	    
-	        if new.Thread != (select Id from Threads join Posts P on Threads.Id = P.Thread where PostId(P.*) = PostPar(new.*)) then
+	        if new.Thread != (select t.Id from Threads t join Posts P on t.Id = P.Thread where PostId(P.*) = PostPar(new.*)) then
 				raise EXCEPTION 'Parent post was created in another thread';
 			end if;
 		end if;
