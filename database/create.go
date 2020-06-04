@@ -71,7 +71,6 @@ create table Posts (
 	Message text not null
 );
 create sequence Posts_Id_seq;
-create index on Posts (IdPath);
 
 create table Status (
     ForumNum integer,
