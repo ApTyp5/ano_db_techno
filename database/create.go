@@ -68,6 +68,9 @@ create table Posts (
 	Message text not null
 );
 
+create index on Posts (ID);
+create index on Posts (Parent);
+
 create table Status (
     ForumNum integer,
     ThreadNum integer,
@@ -156,8 +159,8 @@ $userNumInc$ language plpgsql;
 
 create or replace function postsSetIdCheckForum() returns trigger as $postsSetId$
 	begin
-	    if PostPar(new.*) != 0 then
-	        if new.Thread != (select t.Id from Threads t join Posts P on t.Id = P.Thread where PostId(P.*) = PostPar(new.*)) then
+	    if new.Parent != 0 then
+	        if new.Thread != (select t.Id from Threads t join Posts P on t.Id = P.Thread where P.Id = new.Parent) then
 				raise EXCEPTION 'Parent post was created in another thread';
 			end if;
 		end if;
