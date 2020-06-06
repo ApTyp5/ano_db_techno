@@ -126,19 +126,19 @@ func (uc RDBThreadUseCase) Posts(posts *[]*models.Post, thread *models.Thread, e
 
 	switch sort {
 	case "tree":
-		if *err = errors.Wrap(uc.ps.SelectByThreadIdTree(posts, thread, limit, since, desc), prefix); *err != nil {
+		if *err = errors.Wrap(uc.ps.SelectByThreadTree(posts, thread, limit, since, desc), prefix); *err != nil {
 			return 404
 		}
 		return 200
 
 	case "parent_tree":
-		if *err = errors.Wrap(uc.ps.SelectByThreadIdParentTree(posts, thread, limit, since, desc), prefix); *err != nil {
+		if *err = errors.Wrap(uc.ps.SelectByThreadParentTree(posts, thread, limit, since, desc), prefix); *err != nil {
 			return 404
 		}
 		return 200
 	}
 
-	if *err = errors.Wrap(uc.ps.SelectByThreadIdFlat(posts, thread, limit, since, desc), prefix); *err != nil {
+	if *err = errors.Wrap(uc.ps.SelectByThreadFlat(posts, thread, limit, since, desc), prefix); *err != nil {
 		return 404
 	}
 	return 200

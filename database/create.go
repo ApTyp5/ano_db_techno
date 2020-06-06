@@ -38,7 +38,7 @@ create index on Forums (Slug);
 create table Threads (
 	Id serial primary key,
 	Author integer references Users(Id) not null,
-	Forum integer references Forums(Id) not null,
+	Forum citext references Forums(Slug) not null,
 	Created timestamptz not null default now(),
 	Message text not null,
 	Slug citext null,
@@ -104,7 +104,7 @@ create or replace function postNumInc() returns trigger as $postNumInc$
 			where Id = (
 				select F.Id
 				from Threads t 
-					join Forums F on t.Forum = F.Id
+					join Forums F on t.Forum = F.Slug
 				where new.Thread = t.Id
 			);	
 		update Status set PostNum = PostNum + 1;
@@ -115,7 +115,7 @@ $postNumInc$ language plpgsql;
 create or replace function threadNumInc() returns trigger as $threadNumInc$ 
 	begin
 	    update Forums set ThreadNum = ThreadNum + 1
-	    	where Id = new.forum;
+	    	where Slug = new.forum;
 	    update Status set ThreadNum = ThreadNum + 1;
 	    return new;
 	end;
@@ -157,7 +157,7 @@ $userNumInc$ language plpgsql;
 
 create or replace function postsSetIdCheckForum() returns trigger as $postsSetId$
 	begin
-	    if new.Parent != 0 then
+	    if new.Parent is not null then
 	        if new.Thread != (select t.Id from Threads t join Posts P on t.Id = P.Thread where P.Id = new.Parent) then
 				raise EXCEPTION 'Parent post was created in another thread';
 			end if;

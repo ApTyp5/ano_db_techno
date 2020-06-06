@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
+	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/pkg/errors"
 )
 
@@ -41,6 +42,7 @@ func (fs PSQLForumStore) SelectBySlug(forum *models.Forum) error {
 
 func (fs PSQLForumStore) Insert(forum *models.Forum) error {
 	prefix := "PSQL forumStore Insert"
+	logs.Info("INSERTING FORUM (slug): '" + forum.Slug + "';")
 	row := fs.db.QueryRow(`
 		Insert into Forums (Slug, Title, Responsible)
 		values ($2, $3, (

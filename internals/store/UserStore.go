@@ -46,7 +46,7 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 	query := `
 		select distinct on (NickName) u.About, u.Email, u.FullName, u.NickName
 		from Forums f 
-			left join Threads t on f.Id = t.Forum
+			left join Threads t on f.Slug = t.Forum
 			left join Posts p on t.Id = p.Thread
 			join Users u on (u.Id = p.Author or u.Id = t.Author)
 		where f.Slug = $1 ` + sne + `

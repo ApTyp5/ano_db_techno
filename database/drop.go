@@ -8,7 +8,7 @@ import (
 // DropTables -- отчистка схемы бд
 func DropTables(db *sql.DB) {
 	_, err := db.Exec(`
-drop sequence if exists posts_id_seq;
+drop sequence if exists posts_id_seq cascade ;
 drop function if exists PostId;
 drop function if exists PostPar;
 

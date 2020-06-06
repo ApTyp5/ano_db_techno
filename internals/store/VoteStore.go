@@ -46,11 +46,10 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 	}
 
 	selectQuery := `
-		select u.NickName, th.Created, f.Slug,
+		select u.NickName, th.Created, th.Forum,
 	    	th.Message, th.Id, th.Title, th.VoteNum, th.Slug
 		from Threads th
 			join Users u on u.Id = th.Author
-			join Forums f on f.Id = th.Forum
 			`
 
 	var row *sql.Row
