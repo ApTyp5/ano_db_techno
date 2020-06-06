@@ -153,13 +153,13 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 			valueArgs = append(valueArgs, "("+
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				thid+",'"+
-				mess+"', 0)")
+				mess+"', null)")
 		} else {
 			valueArgs = append(valueArgs, "("+
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				thid+",'"+
 				mess+"',"+
-				"(select Id from Posts where Id = "+parn+")"+
+				" "+parn+" "+
 				")")
 		}
 	}
@@ -170,7 +170,8 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 
 	returnQuery := ` 
 					returning Posts.Id, (select f.Slug from forums f join threads t on f.id = t.forum where t.id = thread),
-                    (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, Posts.Parent;`
+                    (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, 
+					coalesce(Posts.Parent, 0);`
 
 	rows, err := P.db.Query(insertQuery + returnQuery)
 
@@ -198,7 +199,7 @@ func (P PSQLPostStore) SelectByThreadIdFlat(posts *[]*models.Post, thread *model
 	hasSince := since >= 0
 
 	query := `
-		Select u.NickName, p.Created, f.Slug, postId(p.*), p.IsEdited, p.Message, postPar(p.*), p.Thread
+		Select u.NickName, p.Created, f.Slug, p.Id, p.IsEdited, p.Message, coalesce(p.Parent, 0), p.Thread
 		From Posts p
 			join Users u on p.Author = u.Id
 			join Threads t on t.Id = p.Thread
@@ -212,14 +213,14 @@ func (P PSQLPostStore) SelectByThreadIdFlat(posts *[]*models.Post, thread *model
 
 	if desc {
 		if hasSince {
-			query += " and postId(p.*) < $3 "
+			query += " and p.Id < $3 "
 		}
-		query += " Order By p.Created Desc, postId(p.*) Desc"
+		query += " Order By p.Created Desc, p.Id Desc"
 	} else {
 		if hasSince {
-			query += " and postId(p.*) > $3"
+			query += " and p.Id > $3"
 		}
-		query += " Order By p.Created, postId(p.*)"
+		query += " Order By p.Created, p.Id"
 	}
 
 	query += `
@@ -276,10 +277,10 @@ func (P PSQLPostStore) SelectByThreadIdTree(posts *[]*models.Post, thread *model
 
 	withPart += `
 			with recursive ph as (
-				select Array [p.Id] as path, p.Id, p.Parent 
+				select Array [p.Id] as path, p.Id, 0 
 				from posts p
 					join threads t on p.thread = t.id
-				where p.Parent = 0 `
+				where p.Parent is null `
 	if hasSlug {
 		withPart += " and p.Thread = t.Id and t.slug = $1 "
 	} else {
@@ -288,7 +289,7 @@ func (P PSQLPostStore) SelectByThreadIdTree(posts *[]*models.Post, thread *model
 
 	withPart += `
 			union all
-				select ph.path || array [p.Id] as path, p.Id, p.Parent
+				select ph.path || array [p.Id] as path, p.Id, coalesce(p.Parent, 0)
 					from posts p
 			join ph on p.parent = ph.Id
 			)
@@ -371,10 +372,10 @@ func (P PSQLPostStore) SelectByThreadIdParentTree(posts *[]*models.Post, thread 
 	if hasSince {
 		query += ` 
 			with recursive since as (
-				select id, parent
+				select id, coalesce(parent, 0)
 				from posts where id = ` + strconv.FormatInt(int64(since), 10) + `
 					union
-				select p.id, p.parent 
+				select p.id, coalesce(p.parent, 0) 
 				from since s 
 					join posts p on p.id = s.parent
 			),
@@ -394,13 +395,13 @@ func (P PSQLPostStore) SelectByThreadIdParentTree(posts *[]*models.Post, thread 
 	} else {
 		query += " where p.thread = $1 "
 	}
-	query += " and PostPar(p.*) = 0 "
+	query += " and p.Parent is null "
 
 	if hasSince {
 		if desc {
-			query += " and p.Id < (select id from since where parent = 0)"
+			query += " and p.Id < (select id from since where parent is null)"
 		} else {
-			query += " and p.Id > (select id from since where parent = 0)"
+			query += " and p.Id > (select id from since where parent is null)"
 		}
 	}
 
@@ -416,17 +417,17 @@ func (P PSQLPostStore) SelectByThreadIdParentTree(posts *[]*models.Post, thread 
 
 	query += `
 		ph as (
-			select array [p.Id] as path, p.Id, p.Parent 
+			select array [p.Id] as path, p.Id, coalesce(p.Parent, 0) 
 			from posts p join init on p.id = init.id
 				union 
-			select ph.path || array [p.id] as path, p.id, p.parent
+			select ph.path || array [p.id] as path, p.id, coalesce(p.parent, 0)
 			from posts p
 				join ph on p.parent = ph.id
 		)
 `
 
 	query += `
-			Select u.NickName, p.Created, f.Slug, postId(p.*), p.IsEdited, p.Message, postPar(p.*), p.Thread
+			Select u.NickName, p.Created, f.Slug, p.Id, p.IsEdited, p.Message, coalesce(p.Parent, 0), p.Thread
 				From ph
 				join Posts p on p.id = ph.id
 				join Users u on p.Author = u.Id

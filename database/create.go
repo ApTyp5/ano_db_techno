@@ -19,8 +19,8 @@ create table Users (
 	About text null
 );
 
-create index on Users (id);
-create index on Users (NickName);
+create unique index on Users (id);
+create unique index on Users (NickName);
     
 create table Forums (
 	Id serial primary key,
@@ -60,7 +60,7 @@ create table Votes (
 
 create table Posts (
     Id serial primary key ,
-    Parent integer not null ,
+    Parent integer references Posts(Id) default null check ( Id != Parent ),
 	Author integer references Users(Id) not null,
 	Thread integer references Threads(Id) not null,
 	Created timestamptz not null default now(),
@@ -68,8 +68,6 @@ create table Posts (
 	Message text not null
 );
 
-create index on Posts (ID);
-create index on Posts (Parent);
 
 create table Status (
     ForumNum integer,

@@ -18,8 +18,6 @@ drop table if exists Threads;
 drop table if exists Forums;
 drop table if exists Users;
 drop table if exists Status;
-
-
 `)
 
 	if err != nil {
