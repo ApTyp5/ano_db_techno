@@ -46,7 +46,7 @@ func (P PSQLPostStore) Count(amount *uint) error {
 func (P PSQLPostStore) SelectById(post *models.Post) error {
 	prefix := "PSQL PostStore SelectById"
 	row := P.db.QueryRow(`
-		select u.NickName, p.Created, f.Slug, p.IsEdited, p.Message, postPar(p.*), p.Thread
+		select u.NickName, p.Created, f.Slug, p.IsEdited, p.Message, coalesce(p.Parent, 0), p.Thread
 			from Posts p
 				join Users u on p.Author = u.Id
 				join Threads t on p.Thread = t.Id
@@ -67,12 +67,12 @@ func (P PSQLPostStore) UpdateById(post *models.Post) error {
 	row := P.db.QueryRow(`
 		update Posts p
 			set Message = $1
-			where PostId(p.*) = $2
+			where p.id = $2
 		returning 
-			(select u.NickName from Users u join Posts p on p.Author = u.Id where PostId(p.*) = $2), 
+			(select u.NickName from Users u join Posts p on p.Author = u.Id where p.Id = $2), 
 		    Created, 
-		    (select f.Slug from Posts p join Threads t on t.Id = p.Thread join Forums f on f.Id = t.Forum where PostId(p.*) = $2), 
-		    IsEdited, Message, PostPar(p.*), Thread;
+		    (select f.Slug from Posts p join Threads t on t.Id = p.Thread join Forums f on f.Id = t.Forum where p.Id = $2), 
+		    IsEdited, Message, coalesce(p.parent, 0), Thread;
 `, post.Message, post.Id)
 
 	if err := row.Scan(&post.Author, &post.Created, &post.Forum, &post.IsEdited, &post.Message, &post.Parent, &post.Thread); err != nil {
@@ -98,13 +98,13 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 			valueArgs = append(valueArgs, "("+
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				"(select Id from Threads where Slug = '"+thsl+"'),'"+
-				mess+"', 0)")
+				mess+"', null)")
 		} else {
 			valueArgs = append(valueArgs, "("+
 				"(select Id from Users where nickname = '"+nick+"'),"+
 				"(select Id from Threads where Slug = '"+thsl+"'),'"+
 				mess+"',"+
-				"(select Id from Posts p where Id = "+parn+")"+
+				" "+parn+" "+
 				")")
 		}
 	}
@@ -113,14 +113,14 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 					values` + strings.Join(valueArgs, ",")
 
 	returnQuery := ` returning Posts.Id, (select f.Slug from forums f join threads t on f.id = t.forum where t.id = thread),
-                    (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, Posts.Parent;`
+                    (select u.NickName from Users u where Id = author), Thread, Created, IsEdited, Message, coalesce(Posts.Parent, 0);`
 
 	logs.Info("QUERY:\n", insertQuery+returnQuery)
 
 	rows, err := P.db.Query(insertQuery + returnQuery)
 
 	if err != nil {
-		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
+		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's slug error")
 	}
 	defer rows.Close()
 
@@ -296,7 +296,7 @@ func (P PSQLPostStore) SelectByThreadIdTree(posts *[]*models.Post, thread *model
 				`
 
 	query += `
-			Select u.NickName, p.Created, f.Slug, postId(p.*), p.IsEdited, p.Message, postPar(p.*), p.Thread
+			Select u.NickName, p.Created, f.Slug, p.Id, p.IsEdited, p.Message, coalesce(p.Parent, 0), p.Thread
 				From Posts p
 				join ph on p.Id = ph.Id
 				join Users u on p.Author = u.Id
@@ -372,10 +372,10 @@ func (P PSQLPostStore) SelectByThreadIdParentTree(posts *[]*models.Post, thread 
 	if hasSince {
 		query += ` 
 			with recursive since as (
-				select id, coalesce(parent, 0)
+				select id, coalesce(parent, 0) as parent
 				from posts where id = ` + strconv.FormatInt(int64(since), 10) + `
 					union
-				select p.id, coalesce(p.parent, 0) 
+				select p.id, coalesce(p.parent, 0) as parent
 				from since s 
 					join posts p on p.id = s.parent
 			),
@@ -399,9 +399,9 @@ func (P PSQLPostStore) SelectByThreadIdParentTree(posts *[]*models.Post, thread 
 
 	if hasSince {
 		if desc {
-			query += " and p.Id < (select id from since where parent is null)"
+			query += " and p.Id < (select id from since where parent = 0)"
 		} else {
-			query += " and p.Id > (select id from since where parent is null)"
+			query += " and p.Id > (select id from since where parent = 0)"
 		}
 	}
 
