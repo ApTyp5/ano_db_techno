@@ -1,10 +1,10 @@
 package usecase
 
 import (
+	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
 	"github.com/ApTyp5/new_db_techno/logs"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -18,7 +18,7 @@ type RDBUserUseCase struct {
 	us store.UserStore
 }
 
-func CreateRDBUserUseCase(db *pgx.ConnPool) UserUseCase {
+func CreateRDBUserUseCase(db *sql.DB) UserUseCase {
 	return RDBUserUseCase{
 		us: store.CreatePSQLUserStore(db),
 	}
@@ -30,13 +30,10 @@ func (uc RDBUserUseCase) Create(users *[]*models.User, err *error) int {
 	if *err = errors.Wrap(uc.us.Insert((*users)[0]), prefix); *err == nil {
 		return 201
 	}
-	logs.Info("not created: ", (*err).Error())
-
 	if *err = errors.Wrap(uc.us.SelectByNickNameOrEmail(users), prefix); *err == nil {
+		*err = errors.New("Users with this nick or email exists")
 		return 409
 	}
-
-	logs.Info("love you: ", (*err).Error())
 
 	return 600
 }
@@ -45,6 +42,7 @@ func (uc RDBUserUseCase) Update(user *models.User, err *error) int {
 	prefix := "RDB user use case update"
 
 	if *err = errors.Wrap(uc.us.UpdateByNickname(user), prefix); *err != nil {
+		logs.Info("ERROR: ", (*err).Error())
 		if *err = errors.Wrap(uc.us.SelectByNickname(user), prefix); *err != nil {
 			return 404
 		}

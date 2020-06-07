@@ -1,9 +1,9 @@
 package store
 
 import (
+	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/logs"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strconv"
 )
@@ -17,10 +17,10 @@ type UserStore interface {
 }
 
 type PSQLUserStore struct {
-	db *pgx.ConnPool
+	db *sql.DB
 }
 
-func CreatePSQLUserStore(db *pgx.ConnPool) UserStore {
+func CreatePSQLUserStore(db *sql.DB) UserStore {
 	return PSQLUserStore{db: db}
 }
 
@@ -54,7 +54,7 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 		order by u.nick_name ` + dsc + lmt + ";"
 
 	var (
-		rows *pgx.Rows
+		rows *sql.Rows
 		err  error
 	)
 
@@ -112,23 +112,22 @@ func (P PSQLUserStore) UpdateByNickname(user *models.User) error {
 		returning About, Email, full_name, nick_name;
 `, user.About, user.Email, user.FullName, user.NickName)
 
-	return errors.Wrap(row.Scan(&user.About, &user.Email, &user.FullName), "PSQLUserStore updateByNickName")
+	return errors.Wrap(row.Scan(&user.About, &user.Email, &user.FullName, &user.NickName), "PSQLUserStore updateByNickName")
 }
 
 func (P PSQLUserStore) SelectByNickNameOrEmail(users *[]*models.User) error {
+	logs.Info("ENTRY: ", "EMAIL: ", (*users)[0].Email)
+	logs.Info("ENTRY: ", "Nick: ", (*users)[0].NickName)
 	rows, err := P.db.Query(`
 		select About, Email, full_name, nick_name
 		from Users
-		where email = $1 and nick_name = $2;
+		where email = $1 or nick_name = $2;
 `, (*users)[0].Email, (*users)[0].NickName)
-
-	logs.Info("HORAY: ", err)
 
 	if err != nil {
 		return errors.Wrap(err, "PSQLUserStore SelectByNickNameOrEmail query")
 	}
 
-	logs.Info("HORAY")
 	rows.Next()
 	user := &models.User{}
 	if err := rows.Scan(&user.About, &user.Email, &user.FullName, &user.NickName); err != nil {

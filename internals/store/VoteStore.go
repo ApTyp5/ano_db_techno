@@ -1,8 +1,8 @@
 package store
 
 import (
+	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -12,10 +12,10 @@ type VoteStore interface {
 }
 
 type PSQLVoteStore struct {
-	db *pgx.ConnPool
+	db *sql.DB
 }
 
-func CreatePSQLVoteStore(db *pgx.ConnPool) VoteStore {
+func CreatePSQLVoteStore(db *sql.DB) VoteStore {
 	return PSQLVoteStore{db: db}
 }
 
@@ -51,7 +51,7 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 		from Threads th
 			`
 
-	var row *pgx.Row
+	var row *sql.Row
 	if thread.Slug == "" {
 		selectQuery += "where th.Id = $1;"
 		row = tx.QueryRow(selectQuery, thread.Id)
@@ -79,10 +79,10 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 				values ($1,`
 
 	if thread.Slug == "" {
-		query += "(select slug from threads where id = $2), $3);"
+		query += "$2, $3);"
 		_, err = tx.Exec(query, vote.NickName, thread.Id, vote.Voice)
 	} else {
-		query += "$2, $3);"
+		query += "(SELECT id FROM threads WHERE slug = $2), $3);"
 		_, err = tx.Exec(query, vote.NickName, thread.Slug, vote.Voice)
 	}
 
@@ -96,7 +96,7 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 		from Threads th
 			`
 
-	var row *pgx.Row
+	var row *sql.Row
 	if thread.Slug == "" {
 		selectQuery += "where th.Id = $1;"
 		row = tx.QueryRow(selectQuery, thread.Id)

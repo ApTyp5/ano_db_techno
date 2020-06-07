@@ -1,11 +1,11 @@
 package delivery
 
 import (
+	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/delivery/args"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecase"
 	"github.com/ApTyp5/new_db_techno/logs"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	. "github.com/valyala/fasthttp"
 )
@@ -14,7 +14,7 @@ type ServiceHandlerManager struct {
 	uc usecase.ServiceUseCase
 }
 
-func CreateServiceHandlerManager(db *pgx.ConnPool) ServiceHandlerManager {
+func CreateServiceHandlerManager(db *sql.DB) ServiceHandlerManager {
 	return ServiceHandlerManager{uc: usecase.CreateRDBServiceUseCase(db)}
 }
 

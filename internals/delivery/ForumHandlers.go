@@ -1,12 +1,12 @@
 package delivery
 
 import (
+	"database/sql"
 	_const "github.com/ApTyp5/new_db_techno/const"
 	"github.com/ApTyp5/new_db_techno/internals/delivery/args"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecase"
 	"github.com/ApTyp5/new_db_techno/logs"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	. "github.com/valyala/fasthttp"
 )
@@ -15,7 +15,7 @@ type ForumHandlerManager struct {
 	uc usecase.ForumUseCase
 }
 
-func CreateForumHandlerManager(db *pgx.ConnPool) ForumHandlerManager {
+func CreateForumHandlerManager(db *sql.DB) ForumHandlerManager {
 	return ForumHandlerManager{
 		uc: usecase.CreateRDBForumUseCase(db),
 	}

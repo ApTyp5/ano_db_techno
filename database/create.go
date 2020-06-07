@@ -1,18 +1,18 @@
 package database
 
 import (
-	"github.com/jackc/pgx"
+	"database/sql"
 )
 
-func CreateTables(db *pgx.ConnPool) {
+func CreateTables(db *sql.DB) {
 	_, err := db.Exec(`
 
 CREATE OR REPLACE LANGUAGE plpgsql;
 CREATE EXTENSION IF NOT EXISTS citext;
 
 CREATE TABLE users (
-	email text UNIQUE NOT NULL ,
-	nick_name text PRIMARY KEY ,
+	email citext UNIQUE NOT NULL ,
+	nick_name citext PRIMARY KEY ,
 	full_name text NOT NULL ,
 	about text NULL
 );
@@ -26,6 +26,8 @@ CREATE TABLE forums (
 -- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
 
+create index on forums using hash(slug);
+
 CREATE TABLE threads (
 	id serial PRIMARY KEY ,
 	author citext REFERENCES users(nick_name) NOT NULL ,
@@ -37,6 +39,9 @@ CREATE TABLE threads (
 	vote_num integer default 0 NOT NULL 
 -- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
+
+create index on threads using hash(id);
+create index on	threads using hash(slug) where slug != '';
 
 CREATE TABLE votes (
 	author citext REFERENCES users(nick_name) NOT NULL ,
@@ -55,6 +60,8 @@ CREATE TABLE posts (
 	is_edited bool DEFAULT FALSE NOT NULL,
 	message text NOT NULL
 );
+
+create index concurrently on posts using hash(id);
 
 CREATE TABLE status (
     forum_num integer DEFAULT 0,
@@ -76,10 +83,9 @@ $setPostIsEdited$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION post_num_inc() RETURNS TRIGGER AS $postNumInc$
 	begin
 		update Forums set post_num = post_num + 1
-			where id = (
-				select F.id
+			where slug = (
+				select forum
 				from Threads t 
-					join Forums F on t.forum = F.slug
 				where new.thread = t.id
 			);	
 		update Status set post_num = post_num + 1;
@@ -146,7 +152,7 @@ CREATE TRIGGER posts_check_par BEFORE INSERT ON posts FOR EACH ROW EXECUTE PROCE
 CREATE TRIGGER post_num_inc AFTER INSERT ON postS FOR EACH ROW EXECUTE PROCEDURE  post_num_inc();
 CREATE TRIGGER thread_num_inc AFTER INSERT ON threads FOR EACH ROW EXECUTE PROCEDURE  thread_num_inc();
 CREATE TRIGGER thread_rating_count AFTER INSERT ON votes FOR EACH ROW EXECUTE PROCEDURE  thread_rating_count();
-CREATE TRIGGER thread_rating_recount AFTER INSERT ON votes FOR EACH ROW EXECUTE PROCEDURE  thread_rating_recount();
+CREATE TRIGGER thread_rating_recount AFTER UPDATE ON votes FOR EACH ROW EXECUTE PROCEDURE  thread_rating_recount();
 CREATE TRIGGER set_post_is_edited BEFORE UPDATE ON posts FOR EACH ROW EXECUTE PROCEDURE  set_post_is_edited();
 CREATE TRIGGER forum_num_inc AFTER INSERT ON forums FOR EACH ROW EXECUTE PROCEDURE  forum_num_inc();
 CREATE TRIGGER user_num_inc AFTER INSERT ON users FOR EACH ROW EXECUTE PROCEDURE user_num_inc();

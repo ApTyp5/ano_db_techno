@@ -1,10 +1,10 @@
 package store
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/logs"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -20,10 +20,10 @@ type ThreadStore interface {
 }
 
 type PSQLThreadStore struct {
-	db *pgx.ConnPool
+	db *sql.DB
 }
 
-func CreatePSQLThreadStore(db *pgx.ConnPool) ThreadStore {
+func CreatePSQLThreadStore(db *sql.DB) ThreadStore {
 	return PSQLThreadStore{db: db}
 }
 
@@ -40,17 +40,13 @@ func (P PSQLThreadStore) Count(amount *uint) error {
 }
 
 func (P PSQLThreadStore) Insert(thread *models.Thread) error {
-	var row *pgx.Row
+	var row *sql.Row
 	logs.Info("INSERTING THREAD (fslug): '" + thread.Forum + "';")
 
 	if len(thread.Created) == 0 {
 		row = P.db.QueryRow(`
 		insert into Threads (Author, Forum, Message, Slug, Title) values 
-			$1, 
-			$2,
-			$3,
-			(coalesce(nullif($4, ''))),
-			$5)
+			($1, (SELECT slug from forums where forums.slug = $2), $3, (coalesce(nullif($4, ''))), $5)
 		returning Id, (coalesce(Slug, '')), Title, vote_num, Created, Forum;
 `, thread.Author, thread.Forum, thread.Message, thread.Slug, thread.Title)
 
@@ -61,14 +57,14 @@ func (P PSQLThreadStore) Insert(thread *models.Thread) error {
 		return nil
 	} else {
 		row = P.db.QueryRow(`
-		insert into Threads (Author, Forum, Message, Slug, Title, Created) values 
+		insert into Threads (Author, Forum, Message, Slug, Title, Created) values (
 			$1, 
-			$2,
+			(SELECT slug from forums where forums.slug = $2),
 			$3, 
 			$4, 
 			$5,
 			$6)
-		returning Id, Slug, Title, VoteNum, Forum;
+		returning Id, Slug, Title, Vote_Num, Forum;
 `, thread.Author, thread.Forum, thread.Message, thread.Slug, thread.Title, thread.Created)
 
 		if err := row.Scan(&thread.Id, &thread.Slug, &thread.Title, &thread.Votes, &thread.Forum); err != nil {
@@ -83,11 +79,11 @@ func (P PSQLThreadStore) Insert(thread *models.Thread) error {
 
 func (P PSQLThreadStore) SelectByForum(threads *[]*models.Thread, forum *models.Forum, limit int, since string, desc bool) error {
 	var (
-		rows *pgx.Rows
+		rows *sql.Rows
 		err  error
 	)
 
-	query1 := `	select t.Id, t.author, t.Forum, t.Created, t.Message, t.Slug, t.Title, t.VoteNum
+	query1 := `	select t.Id, t.author, t.Forum, t.Created, t.Message, t.Slug, t.Title, t.vote_num
 				from Threads t
 				where t.Forum = $1`
 
@@ -129,7 +125,7 @@ func (P PSQLThreadStore) SelectByForum(threads *[]*models.Thread, forum *models.
 
 func (P PSQLThreadStore) SelectBySlug(thread *models.Thread) error {
 	row := P.db.QueryRow(`
-		select t.Id, t.author, t.Forum, t.Created, t.Message, t.Title, t.VoteNum, t.Slug
+		select t.Id, t.author, t.Forum, t.Created, t.Message, t.Title, t.vote_num, t.Slug
 		from Threads t
 		where t.Slug = $1;
 `, thread.Slug)
@@ -141,7 +137,7 @@ func (P PSQLThreadStore) SelectBySlug(thread *models.Thread) error {
 
 func (P PSQLThreadStore) SelectById(thread *models.Thread) error {
 	row := P.db.QueryRow(`
-		select t.Slug, t.author, t.Forum, t.Created, t.Message, t.Title, t.VoteNum
+		select t.Slug, t.author, t.Forum, t.Created, t.Message, t.Title, t.vote_num
 		from Threads t
 		where t.Id = $1;
 `, thread.Id)

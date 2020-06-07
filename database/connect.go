@@ -1,21 +1,12 @@
 package database
 
 import (
-	"github.com/jackc/pgx"
+	"database/sql"
 )
 
-func Connect(connStr string, connNum int) *pgx.ConnPool {
-	connConfig, err := pgx.ParseConnectionString(connStr)
-	if err != nil {
-		panic(err)
-	}
+func Connect(connStr string, connNum int) *sql.DB {
+	conn, err := sql.Open("pgx", connStr)
 
-	conn, err := pgx.NewConnPool(
-		pgx.ConnPoolConfig{
-			ConnConfig:     connConfig,
-			MaxConnections: connNum,
-		},
-	)
 	if err != nil {
 		panic(err)
 	}

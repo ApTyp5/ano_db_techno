@@ -1,8 +1,8 @@
 package store
 
 import (
+	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -13,10 +13,10 @@ type ForumStore interface {
 }
 
 type PSQLForumStore struct {
-	db *pgx.ConnPool
+	db *sql.DB
 }
 
-func CreatePSQLForumStore(db *pgx.ConnPool) ForumStore {
+func CreatePSQLForumStore(db *sql.DB) ForumStore {
 	return PSQLForumStore{
 		db: db,
 	}
@@ -43,8 +43,8 @@ func (fs PSQLForumStore) Insert(forum *models.Forum) error {
 	return errors.Wrap(fs.db.QueryRow(
 		`
 			INSERT INTO FORUMS (slug, title, responsible)
-			VALUES ($1, $2, $3)
-			RETURNING (slug, title, responsible, post_num, thread_num)
+			VALUES ($1, $2, (select nick_name from Users where nick_name = $3))
+			RETURNING slug, title, responsible, post_num, thread_num
 			`,
 		forum.Slug,
 		forum.Title,

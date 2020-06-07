@@ -1,12 +1,12 @@
 package delivery
 
 import (
+	"database/sql"
 	_const "github.com/ApTyp5/new_db_techno/const"
 	"github.com/ApTyp5/new_db_techno/internals/delivery/args"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecase"
 	"github.com/ApTyp5/new_db_techno/logs"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	. "github.com/valyala/fasthttp"
 )
@@ -15,7 +15,7 @@ type ThreadHandlerManager struct {
 	uc usecase.ThreadUseCase
 }
 
-func CreateThreadHandlerManager(db *pgx.ConnPool) ThreadHandlerManager {
+func CreateThreadHandlerManager(db *sql.DB) ThreadHandlerManager {
 	return ThreadHandlerManager{
 		uc: usecase.CreateRDBThreadUseCase(db),
 	}

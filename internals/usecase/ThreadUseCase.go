@@ -1,10 +1,10 @@
 package usecase
 
 import (
+	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
 	"github.com/ApTyp5/new_db_techno/logs"
-	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strings"
 )
@@ -26,7 +26,7 @@ type RDBThreadUseCase struct {
 	us store.UserStore
 }
 
-func CreateRDBThreadUseCase(db *pgx.ConnPool) ThreadUseCase {
+func CreateRDBThreadUseCase(db *sql.DB) ThreadUseCase {
 	return RDBThreadUseCase{
 		ts: store.CreatePSQLThreadStore(db),
 		ps: store.CreatePSQLPostStore(db),
@@ -40,7 +40,8 @@ func (uc RDBThreadUseCase) AddPosts(thread *models.Thread, posts *[]*models.Post
 
 	if *err = errors.Wrap(uc.ps.InsertPostsByThread(thread, posts), prefix); *err != nil {
 		logs.Info("ERROR:", (*err).Error())
-		if strings.Index(errors.Cause(*err).Error(), "another") >= 0 {
+		if strings.Index(errors.Cause(*err).Error(), "posts_parent") >= 0 ||
+			strings.Index(errors.Cause(*err).Error(), "another") >= 0 {
 			return 409
 		}
 		return 404
