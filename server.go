@@ -1,24 +1,23 @@
 package main
 
 import (
-	_ "database/sql"
 	"github.com/ApTyp5/new_db_techno/database"
 	"github.com/ApTyp5/new_db_techno/internals/delivery"
 	"github.com/ApTyp5/new_db_techno/logs"
 	mv "github.com/ApTyp5/new_db_techno/middleware"
 	fasthttpRouter "github.com/fasthttp/router"
 
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/jackc/pgx"
 	"github.com/valyala/fasthttp"
 )
 
 func main() {
 	init := fasthttpRouter.New()
 	router := init.Group("/api")
-	connStr := "user=docker password=docker dbname=docker sslmode=disable host=0.0.0.0"
+	connStr := "postgresql://docker:docker@0.0.0.0:5432/docker"
 
 	db := database.Connect(connStr, 70) // panic
-	defer func() { _ = db.Close() }()   // panic
+	defer db.Close()                    // panic
 
 	database.DropTables(db)   // no-panic
 	database.CreateTables(db) // panic

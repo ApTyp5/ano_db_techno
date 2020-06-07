@@ -1,8 +1,8 @@
 package store
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -12,10 +12,10 @@ type VoteStore interface {
 }
 
 type PSQLVoteStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLVoteStore(db *sql.DB) VoteStore {
+func CreatePSQLVoteStore(db *pgx.ConnPool) VoteStore {
 	return PSQLVoteStore{db: db}
 }
 
@@ -29,7 +29,7 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 
 	query := `
 		update Votes set Voice = $1
-		where Author = (select Id from Users where NickName = $2) 
+		where Author = $2 
 			and 
 `
 
@@ -46,13 +46,12 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 	}
 
 	selectQuery := `
-		select u.NickName, th.Created, th.Forum,
-	    	th.Message, th.Id, th.Title, th.VoteNum, th.Slug
+		select th.author, th.Created, th.Forum,
+	    	th.Message, th.Id, th.Title, th.vote_num, th.Slug
 		from Threads th
-			join Users u on u.Id = th.Author
 			`
 
-	var row *sql.Row
+	var row *pgx.Row
 	if thread.Slug == "" {
 		selectQuery += "where th.Id = $1;"
 		row = tx.QueryRow(selectQuery, thread.Id)
@@ -74,16 +73,16 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 	if err != nil {
 		return errors.Wrap(err, "PSQLVoteStore Insert begin")
 	}
-
 	defer tx.Rollback()
 
 	query := `insert into Votes (Author, Thread, Voice)
-				values ((select Id from Users where NickName = $1),`
+				values ($1,`
+
 	if thread.Slug == "" {
-		query += "$2, $3);"
+		query += "(select slug from threads where id = $2), $3);"
 		_, err = tx.Exec(query, vote.NickName, thread.Id, vote.Voice)
 	} else {
-		query += "(select Id from Threads where Slug = $2), $3);"
+		query += "$2, $3);"
 		_, err = tx.Exec(query, vote.NickName, thread.Slug, vote.Voice)
 	}
 
@@ -92,14 +91,12 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 	}
 
 	selectQuery := `
-		select u.NickName, th.Created, f.Slug,
-	    	th.Message, th.Id, th.Title, th.VoteNum, th.Slug
+		select th.author, th.Created, th.Forum,
+	    	th.Message, th.Id, th.Title, th.Vote_num, th.Slug
 		from Threads th
-			join Users u on u.Id = th.Author
-			join Forums f on f.Id = th.Forum
 			`
 
-	var row *sql.Row
+	var row *pgx.Row
 	if thread.Slug == "" {
 		selectQuery += "where th.Id = $1;"
 		row = tx.QueryRow(selectQuery, thread.Id)
@@ -112,8 +109,6 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 		&thread.Id, &thread.Title, &thread.Votes, &thread.Slug), "PSQLVoteStore Insert"); err != nil {
 		return err
 	}
-
-	thread.Votes += vote.Voice
 
 	return tx.Commit()
 }

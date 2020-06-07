@@ -1,12 +1,12 @@
 package delivery
 
 import (
-	"database/sql"
 	_const "github.com/ApTyp5/new_db_techno/const"
 	"github.com/ApTyp5/new_db_techno/internals/delivery/args"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecase"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	. "github.com/valyala/fasthttp"
 )
@@ -15,7 +15,7 @@ type UserHandlerManager struct {
 	uc usecase.UserUseCase
 }
 
-func CreateUserHandlerManager(db *sql.DB) UserHandlerManager {
+func CreateUserHandlerManager(db *pgx.ConnPool) UserHandlerManager {
 	return UserHandlerManager{uc: usecase.CreateRDBUserUseCase(db)}
 }
 

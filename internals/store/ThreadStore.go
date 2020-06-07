@@ -1,10 +1,10 @@
 package store
 
 import (
-	"database/sql"
 	"fmt"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -20,10 +20,10 @@ type ThreadStore interface {
 }
 
 type PSQLThreadStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLThreadStore(db *sql.DB) ThreadStore {
+func CreatePSQLThreadStore(db *pgx.ConnPool) ThreadStore {
 	return PSQLThreadStore{db: db}
 }
 
@@ -40,18 +40,18 @@ func (P PSQLThreadStore) Count(amount *uint) error {
 }
 
 func (P PSQLThreadStore) Insert(thread *models.Thread) error {
-	var row *sql.Row
+	var row *pgx.Row
 	logs.Info("INSERTING THREAD (fslug): '" + thread.Forum + "';")
 
 	if len(thread.Created) == 0 {
 		row = P.db.QueryRow(`
 		insert into Threads (Author, Forum, Message, Slug, Title) values 
-			((select Id from Users where NickName = $1), 
-			 (select Slug from Forums where Slug = $2),
-			 $3,
-			 (coalesce(nullif($4, ''))),
-			 $5)
-		returning Id, (coalesce(Slug, '')), Title, VoteNum, Created, Forum;
+			$1, 
+			$2,
+			$3,
+			(coalesce(nullif($4, ''))),
+			$5)
+		returning Id, (coalesce(Slug, '')), Title, vote_num, Created, Forum;
 `, thread.Author, thread.Forum, thread.Message, thread.Slug, thread.Title)
 
 		if err := row.Scan(&thread.Id, &thread.Slug, &thread.Title, &thread.Votes, &thread.Created, &thread.Forum); err != nil {
@@ -62,12 +62,12 @@ func (P PSQLThreadStore) Insert(thread *models.Thread) error {
 	} else {
 		row = P.db.QueryRow(`
 		insert into Threads (Author, Forum, Message, Slug, Title, Created) values 
-			((select Id from Users where NickName = $1), 
-			(select Slug from Forums where Slug = $2),
-			 $3, 
-			 $4, 
-			 $5,
-			 $6)
+			$1, 
+			$2,
+			$3, 
+			$4, 
+			$5,
+			$6)
 		returning Id, Slug, Title, VoteNum, Forum;
 `, thread.Author, thread.Forum, thread.Message, thread.Slug, thread.Title, thread.Created)
 
@@ -83,13 +83,12 @@ func (P PSQLThreadStore) Insert(thread *models.Thread) error {
 
 func (P PSQLThreadStore) SelectByForum(threads *[]*models.Thread, forum *models.Forum, limit int, since string, desc bool) error {
 	var (
-		rows *sql.Rows
+		rows *pgx.Rows
 		err  error
 	)
 
-	query1 := `	select t.Id, u.NickName, t.Forum, t.Created, t.Message, t.Slug, t.Title, t.VoteNum
+	query1 := `	select t.Id, t.author, t.Forum, t.Created, t.Message, t.Slug, t.Title, t.VoteNum
 				from Threads t
-					join Users u on u.Id = t.Author
 				where t.Forum = $1`
 
 	query2 := " order by t.Created"
@@ -130,9 +129,8 @@ func (P PSQLThreadStore) SelectByForum(threads *[]*models.Thread, forum *models.
 
 func (P PSQLThreadStore) SelectBySlug(thread *models.Thread) error {
 	row := P.db.QueryRow(`
-		select t.Id, u.NickName, t.Forum, t.Created, t.Message, t.Title, t.VoteNum, t.Slug
+		select t.Id, t.author, t.Forum, t.Created, t.Message, t.Title, t.VoteNum, t.Slug
 		from Threads t
-			join Users u on u.Id = t.Author
 		where t.Slug = $1;
 `, thread.Slug)
 
@@ -143,9 +141,8 @@ func (P PSQLThreadStore) SelectBySlug(thread *models.Thread) error {
 
 func (P PSQLThreadStore) SelectById(thread *models.Thread) error {
 	row := P.db.QueryRow(`
-		select t.Slug, u.NickName, t.Forum, t.Created, t.Message, t.Title, t.VoteNum
+		select t.Slug, t.author, t.Forum, t.Created, t.Message, t.Title, t.VoteNum
 		from Threads t
-			join Users u on u.Id = t.Author
 		where t.Id = $1;
 `, thread.Id)
 
@@ -170,12 +167,7 @@ func (P PSQLThreadStore) UpdateBySlug(thread *models.Thread) error {
 	row := P.db.QueryRow(`
 		update Threads t set `+updateRow+`
 		where t.Slug = $1
-		returning (
-		    select u.NickName 
-		    from Users u
-		        join Threads t on t.Author = u.Id
-		    where t.Slug = $1
-		), t.Created, t.Forum, t.Id, t.Message, t.Title, t.VoteNum, t.Slug; 
+		returning t.author, t.Created, t.Forum, t.Id, t.Message, t.Title, t.vote_num, t.Slug; 
 `, thread.Slug)
 
 	return errors.Wrap(row.Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.Id,
@@ -199,12 +191,7 @@ func (P PSQLThreadStore) UpdateById(thread *models.Thread) error {
 	row := P.db.QueryRow(`
 		update Threads t set `+updateRow+`
 		where t.Id = $1
-		returning (
-		    select u.NickName 
-		    from Users u
-		        join Threads t on t.Author = u.Id
-		    where t.Id = $1
-		), t.Created, t.Forum, t.Slug, t.Message, t.Title, t.VoteNum, t.slug; 
+		returning t.author, t.Created, t.Forum, t.Slug, t.Message, t.Title, t.vote_num, t.slug; 
 `, thread.Id)
 
 	return errors.Wrap(row.Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.Slug,

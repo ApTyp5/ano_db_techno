@@ -1,9 +1,10 @@
 package store
 
 import (
-	"database/sql"
+	"fmt"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strconv"
 	"strings"
@@ -12,9 +13,8 @@ import (
 type PostStore interface {
 	Count(amount *uint) error
 	SelectById(post *models.Post) error
-	UpdateById(post *models.Post) error                                         // Edit
-	InsertPostsByThreadSlug(thread *models.Thread, posts *[]*models.Post) error // thread.AddPosts
-	InsertPostsByThreadId(thread *models.Thread, posts *[]*models.Post) error   // thread.AddPosts
+	UpdateById(post *models.Post) error                                     // Edit
+	InsertPostsByThread(thread *models.Thread, posts *[]*models.Post) error // thread.AddPosts
 	// threads.Posts
 	SelectByThreadFlat(posts *[]*models.Post, thread *models.Thread, limit int, since int, desc bool) error
 	// threads.Posts
@@ -24,17 +24,17 @@ type PostStore interface {
 }
 
 type PSQLPostStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLPostStore(db *sql.DB) PostStore {
+func CreatePSQLPostStore(db *pgx.ConnPool) PostStore {
 	return PSQLPostStore{db: db}
 }
 
 func (P PSQLPostStore) Count(amount *uint) error {
 	prefix := "PSQL PostStore Count"
 	row := P.db.QueryRow(`
-		select PostNum from Status;
+		select post_num from Status;
 `)
 	if err := row.Scan(amount); err != nil {
 		return errors.Wrap(err, prefix)
@@ -46,7 +46,7 @@ func (P PSQLPostStore) Count(amount *uint) error {
 func (P PSQLPostStore) SelectById(post *models.Post) error {
 	prefix := "PSQL PostStore SelectById"
 	row := P.db.QueryRow(`
-		select u.NickName, p.Created, t.Forum, p.IsEdited, p.Message, coalesce(p.Parent, 0), p.Thread
+		select u.nick_name, p.Created, t.Forum, p.is_edited, p.Message, coalesce(p.Parent, 0), p.Thread
 			from Posts p
 				join Users u on p.Author = u.Id
 				join Threads t on p.Thread = t.Id
@@ -68,7 +68,7 @@ func (P PSQLPostStore) UpdateById(post *models.Post) error {
 			set Message = $1
 			where p.id = $2
 		returning 
-			(select u.NickName from Users u join Posts p on p.Author = u.Id where p.Id = $2), 
+			(select u.nick_name from Users u join Posts p on p.Author = u.Id where p.Id = $2), 
 		    Created, 
 		    (select t.Forum from Posts p join Threads t on t.Id = p.Thread where p.Id = $2), 
 		    IsEdited, Message, coalesce(p.parent, 0), Thread;
@@ -81,7 +81,7 @@ func (P PSQLPostStore) UpdateById(post *models.Post) error {
 	return nil
 }
 
-func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*models.Post) error {
+func (P PSQLPostStore) InsertPostsByThread(thread *models.Thread, posts *[]*models.Post) error {
 	if len(*posts) == 0 {
 		return nil
 	}
@@ -95,18 +95,25 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 	valueArgs := make([]string, 0, len(*posts))
 	for i := range *posts {
 		nick := (*posts)[i].Author
+		thid := thread.Id
 		thsl := thread.Slug
 		mess := (*posts)[i].Message
-		parn := strconv.FormatInt(int64((*posts)[i].Parent), 10)
+		parn := (*posts)[i].Parent
 
-		if parn == "0" {
-			valueArgs = append(valueArgs, "('"+nick+"','"+thsl+"','"+mess+"', null)")
+		if len(thsl) == 0 {
+			valueArgs = append(valueArgs, fmt.Sprintf("('%s', %d, '%s'", nick, thid, mess))
 		} else {
-			valueArgs = append(valueArgs, "('"+nick+"','"+thsl+"','"+mess+"',"+parn+")")
+			valueArgs = append(valueArgs, fmt.Sprintf("('%s', '%s', '%s'", nick, thsl, mess))
+		}
+
+		if parn == 0 {
+			valueArgs = append(valueArgs, "null)")
+		} else {
+			valueArgs = append(valueArgs, fmt.Sprintf("%d)", parn))
 		}
 	}
 
-	_, err = tx.Exec(`
+	query := `
 		create temp table if not exists insPosts (
 			Id serial,
 			NickName text,
@@ -115,30 +122,58 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 			Parent integer,
 			ThreadSlug text 
 		) on commit drop;
+				`
 
-	insert into insPosts (NickName, ThreadSlug, Message, Parent) values 
-` + strings.Join(valueArgs, ","))
-	if err != nil {
-		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
+	if len(thread.Slug) == 0 {
+		query += "insert into insPosts (NickName, Thread, Message, Parent) values"
+	} else {
+		query += "insert into insPosts (NickName, ThreadSlug, Message, Parent) values"
 	}
 
-	query :=
-		`insert into Posts (Author, Thread, Message, Parent)
-			select u.Id, t.Id, ip.Message, ip.Parent
-			from insPosts ip
-				join users u on ip.NickName = u.nickname
-				join threads t on t.Slug = ip.ThreadSlug
-			order by ip.id
-			returning Posts.Id, Thread, Created,
-				IsEdited, Message, coalesce(Posts.Parent, 0);
-		`
+	_, err = tx.Exec(query + strings.Join(valueArgs, ","))
+	logs.Info("QUERY: ", query+strings.Join(valueArgs, ","))
+
+	if err != nil {
+		return errors.Wrap(err, "PSQLPostStore insertPostsByThread tmp table")
+	}
+
+	if len(thread.Slug) == 0 {
+		row := tx.QueryRow("SELECT forum FROM threads WHERE id = $1;", thread.Id)
+		if err := row.Scan(&thread.Forum); err != nil {
+			return errors.Wrap(err, "PSQLPostStore insertPostsByThread select forum")
+		}
+	} else {
+		row := tx.QueryRow("SELECT forum FROM threads WHERE slug = $1;", thread.Slug)
+		if err = row.Scan(&thread.Forum); err != nil {
+			return errors.Wrap(err, "PSQLPostStore insertPostsByThread select forum")
+		}
+	}
+
+	if len(thread.Slug) == 0 {
+		query = `
+	INSERT INTO posts (author, thread, message, parent)
+	SELECT u.id, ip.thread, ip.message, ip.parent
+	FROM insPosts ip
+		JOIN users u ON ip.nickName = u.nick_name
+	ORDER BY ip.id
+	RETURNING posts.id, thread, created, is_edited, message, coalesce(posts.parent, 0);
+				`
+	} else {
+		query = `
+	INSERT INTO posts (author, thread, message, parent)
+	SELECT u.id, t.id, ip.message, ip.parent
+	FROM insPosts ip
+		JOIN threads t ON t.slug = ip.ThreadSlug
+		JOIN users u ON ip.nickName = u.nick_name
+	ORDER BY ip.id
+	RETURNING posts.id, thread, created, is_edited, message, coalesce(posts.parent, 0);
+				`
+	}
 
 	rows, err := tx.Query(query)
 
-	logs.Info("QUERY:\n", query)
-
 	if err != nil {
-		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
+		return errors.Wrap(err, "PSQLPostStore insertPostsByThread main insert")
 	}
 	defer rows.Close()
 
@@ -154,86 +189,7 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 	}
 
 	if i == 0 {
-		return errors.Wrap(errors.New("author not found"), "PSQLPostStore insertPostsByThread's")
-	}
-
-	return tx.Commit()
-}
-
-func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*models.Post) error {
-	if len(*posts) == 0 {
-		return nil
-	}
-
-	tx, err := P.db.Begin()
-	if err != nil {
-		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
-	}
-	defer tx.Rollback()
-
-	valueArgs := make([]string, 0, len(*posts))
-	for i := range *posts {
-		nick := (*posts)[i].Author
-		thid := strconv.FormatInt(int64(thread.Id), 10)
-		mess := (*posts)[i].Message
-		parn := strconv.FormatInt(int64((*posts)[i].Parent), 10)
-
-		if parn == "0" {
-			valueArgs = append(valueArgs, "('"+nick+"',"+thid+",'"+mess+"', null)")
-		} else {
-			valueArgs = append(valueArgs, "('"+nick+"',"+thid+",'"+mess+"',"+parn+")")
-		}
-	}
-
-	_, err = tx.Exec(`
-		create temp table if not exists insPosts (
-			Id serial,
-			NickName text,
-			Thread integer,
-			Message text,
-			Parent integer,
-			ThreadSlug text
-		) on commit drop;
-
-	insert into insPosts (NickName, Thread, Message, Parent) values 
-` + strings.Join(valueArgs, ","))
-	if err != nil {
-		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
-	}
-
-	query :=
-		`
-		insert into Posts (Author, Thread, Message, Parent)
-			select u.Id, ip.Thread, ip.Message, ip.Parent
-			from insPosts ip
-				join users u on ip.NickName = u.nickname
-			order by ip.Id
-			returning Posts.Id, Thread, Created,
-				IsEdited, Message, coalesce(Posts.Parent, 0);
-		`
-
-	rows, err := tx.Query(query)
-
-	logs.Info("QUERY:\n", query)
-
-	if err != nil {
-		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
-	}
-	defer rows.Close()
-
-	i := 0
-	for rows.Next() {
-		if err := rows.Scan(&(*posts)[i].Id, &(*posts)[i].Thread, &(*posts)[i].Created,
-			&(*posts)[i].IsEdited, &(*posts)[i].Message, &(*posts)[i].Parent); err != nil {
-			return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id SCAN error")
-		}
-
-		(*posts)[i].Forum = thread.Forum
-		i++
-	}
-
-	if i == 0 {
-		return errors.Wrap(errors.New("author not found"), "PSQLPostStore insertPostsByThread's")
+		return errors.Wrap(errors.New("author or thread not found"), "PSQLPostStore insertPostsByThread's")
 	}
 
 	return tx.Commit()
@@ -243,7 +199,7 @@ func (P PSQLPostStore) SelectByThreadFlat(posts *[]*models.Post, thread *models.
 	hasSince := since >= 0
 
 	query := `
-		Select u.NickName, p.Created, t.Forum, p.Id, p.IsEdited, p.Message, coalesce(p.Parent, 0), p.Thread
+		Select u.nick_name, p.Created, t.Forum, p.Id, p.is_edited, p.Message, coalesce(p.Parent, 0), p.Thread
 		From Posts p
 			join Users u on p.Author = u.Id
 			join Threads t on t.Id = p.Thread
@@ -270,7 +226,7 @@ func (P PSQLPostStore) SelectByThreadFlat(posts *[]*models.Post, thread *models.
 		Limit $2;
 			`
 	var (
-		rows *sql.Rows
+		rows *pgx.Rows
 		err  error
 	)
 	if thread.Slug == "" {
@@ -311,7 +267,7 @@ func (P PSQLPostStore) SelectByThreadTree(posts *[]*models.Post, thread *models.
 	var (
 		hasSince = since >= 0
 		hasSlug  = thread.Slug != ""
-		rows     *sql.Rows
+		rows     *pgx.Rows
 		err      error
 		withPart = ""
 		query    = ""
@@ -341,7 +297,7 @@ func (P PSQLPostStore) SelectByThreadTree(posts *[]*models.Post, thread *models.
 				`
 
 	query += `
-			Select u.NickName, p.Created, t.Forum, p.Id, p.IsEdited, p.Message, coalesce(p.Parent, 0), p.Thread
+			Select u.nick_name, p.Created, t.Forum, p.Id, p.is_edited, p.Message, coalesce(p.Parent, 0), p.Thread
 				From Posts p
 				join ph on p.Id = ph.Id
 				join Users u on p.Author = u.Id
@@ -406,7 +362,7 @@ func (P PSQLPostStore) SelectByThreadParentTree(posts *[]*models.Post, thread *m
 		hasLimit = limit > 0
 		hasSince = since >= 0
 		hasSlug  = thread.Slug != ""
-		rows     *sql.Rows
+		rows     *pgx.Rows
 		err      error
 
 		query = ""
@@ -470,7 +426,7 @@ func (P PSQLPostStore) SelectByThreadParentTree(posts *[]*models.Post, thread *m
 `
 
 	query += `
-			Select u.NickName, p.Created, t.Forum, p.Id, p.IsEdited, p.Message, coalesce(p.Parent, 0), p.Thread
+			Select u.nick_name, p.Created, t.Forum, p.Id, p.is_edited, p.Message, coalesce(p.Parent, 0), p.Thread
 				From ph
 				join Posts p on p.id = ph.id
 				join Users u on p.Author = u.Id

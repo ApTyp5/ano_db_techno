@@ -1,12 +1,12 @@
 package database
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 )
 
 // DropTables -- отчистка схемы бд
-func DropTables(db *sql.DB) {
+func DropTables(db *pgx.ConnPool) {
 	_, err := db.Exec(`
 drop sequence if exists posts_id_seq cascade ;
 drop function if exists PostId;

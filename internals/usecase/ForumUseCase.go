@@ -1,9 +1,9 @@
 package usecase
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -21,7 +21,7 @@ type RDBForumUseCase struct {
 	us store.UserStore
 }
 
-func CreateRDBForumUseCase(db *sql.DB) ForumUseCase {
+func CreateRDBForumUseCase(db *pgx.ConnPool) ForumUseCase {
 	return RDBForumUseCase{
 		fs: store.CreatePSQLForumStore(db),
 		ts: store.CreatePSQLThreadStore(db),

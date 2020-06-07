@@ -1,9 +1,8 @@
 package store
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -14,63 +13,53 @@ type ForumStore interface {
 }
 
 type PSQLForumStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLForumStore(db *sql.DB) ForumStore {
+func CreatePSQLForumStore(db *pgx.ConnPool) ForumStore {
 	return PSQLForumStore{
 		db: db,
 	}
 }
 
 func (fs PSQLForumStore) SelectBySlug(forum *models.Forum) error {
-	prefix := "PSQL forumStore selectBySlug"
-	row := fs.db.QueryRow(`
-		select PostNum, ThreadNum, Title, Slug, (select NickName from Users where Id = Responsible)
-			from Forums
-			where Slug = $1;
-`, forum.Slug)
-
-	return errors.Wrap(row.Scan(
-		&forum.Posts,
-		&forum.Threads,
-		&forum.Title,
-		&forum.Slug,
-		&forum.User,
-	), prefix)
+	return errors.Wrap(
+		fs.db.QueryRow(
+			`
+		SELECT post_num, thread_num, title, slug, responsible
+			FROM forums
+		WHERE slug = $1;
+		`,
+			forum.Slug).Scan(
+			&forum.Posts,
+			&forum.Threads,
+			&forum.Title,
+			&forum.Slug,
+			&forum.User),
+		"PSQL forumStore selectBySlug")
 }
 
 func (fs PSQLForumStore) Insert(forum *models.Forum) error {
-	prefix := "PSQL forumStore Insert"
-	logs.Info("INSERTING FORUM (slug): '" + forum.Slug + "';")
-	row := fs.db.QueryRow(`
-		Insert into Forums (Slug, Title, Responsible)
-		values ($2, $3, (
-		    select Id
-		    from Users
-		    where NickName = $1
-		))
-		returning Slug, Title, (
-		    select NickName from Users where NickName = $1
-		);
-`,
-		forum.User,
+	return errors.Wrap(fs.db.QueryRow(
+		`
+			INSERT INTO FORUMS (slug, title, responsible)
+			VALUES ($1, $2, $3)
+			RETURNING (slug, title, responsible, post_num, thread_num)
+			`,
 		forum.Slug,
 		forum.Title,
-	)
-
-	return errors.Wrap(row.Scan(&forum.Slug, &forum.Title, &forum.User), prefix)
+		forum.User).Scan(&forum.Slug,
+		&forum.Title,
+		&forum.User,
+		&forum.Posts,
+		&forum.Threads),
+		"PSQL forumStore Insert")
 }
 
 func (fs PSQLForumStore) Count(num *uint) error {
-	prefix := "PSQL forumStore Count"
-	row := fs.db.QueryRow(`
-		select ForumNum from Status;
-`)
-
-	if err := row.Scan(num); err != nil {
-		return errors.Wrap(err, prefix)
-	}
-
-	return nil
+	return errors.Wrap(fs.db.QueryRow(
+		`
+			SELECT forum_num FROM status;
+			`).Scan(num),
+		"PSQL forumStore Count")
 }

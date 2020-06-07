@@ -1,8 +1,8 @@
 package store
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strconv"
 )
@@ -16,10 +16,10 @@ type UserStore interface {
 }
 
 type PSQLUserStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLUserStore(db *sql.DB) UserStore {
+func CreatePSQLUserStore(db *pgx.ConnPool) UserStore {
 	return PSQLUserStore{db: db}
 }
 
@@ -29,12 +29,12 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 		dsc = "DESC"
 	}
 
-	sne := ""
+	sinc := ""
 	if since != "" {
 		if desc {
-			sne = " and u.NickName < $2"
+			sinc = " and u.nick_name < $2"
 		} else {
-			sne = " and u.NickName > $2"
+			sinc = " and u.nick_name > $2"
 		}
 	}
 
@@ -44,16 +44,16 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 	}
 
 	query := `
-		select distinct on (NickName) u.About, u.Email, u.FullName, u.NickName
+		select distinct on (nick_name) u.About, u.Email, u.full_name, u.nick_name
 		from Forums f 
 			left join Threads t on f.Slug = t.Forum
 			left join Posts p on t.Id = p.Thread
-			join Users u on (u.Id = p.Author or u.Id = t.Author)
-		where f.Slug = $1 ` + sne + `
-		order by u.NickName ` + dsc + lmt + ";"
+			join Users u on (u.nick_name = p.Author or u.nick_name = t.Author)
+		where f.Slug = $1 ` + sinc + `
+		order by u.nick_name ` + dsc + lmt + ";"
 
 	var (
-		rows *sql.Rows
+		rows *pgx.Rows
 		err  error
 	)
 
@@ -82,7 +82,7 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 
 func (P PSQLUserStore) Insert(user *models.User) error {
 	_, err := P.db.Exec(`
-		insert into Users (About, Email, FullName, NickName)
+		insert into Users (About, Email, full_name, nick_name)
 		values ($1, $2, $3, $4);
 `, user.About, user.Email, user.FullName, user.NickName)
 
@@ -91,9 +91,9 @@ func (P PSQLUserStore) Insert(user *models.User) error {
 
 func (P PSQLUserStore) SelectByNickname(user *models.User) error {
 	row := P.db.QueryRow(`
-		select About, Email, FullName, NickName
+		select About, Email, full_name, nick_name
 		from Users
-		where NickName = $1;
+		where nick_name = $1;
 `, user.NickName)
 
 	return errors.Wrap(row.Scan(&user.About, &user.Email, &user.FullName, &user.NickName),
@@ -106,9 +106,9 @@ func (P PSQLUserStore) UpdateByNickname(user *models.User) error {
 			set 
 			    About = coalesce(nullif($1, ''), About), 
 			    Email = coalesce(nullif($2, ''), Email), 
-			    FullName = coalesce(nullif($3, ''), FullName)
-		where NickName = $4
-		returning About, Email, FullName;
+			    full_name = coalesce(nullif($3, ''), full_name)
+		where nick_name = $4
+		returning About, Email, full_name, nick_name;
 `, user.About, user.Email, user.FullName, user.NickName)
 
 	return errors.Wrap(row.Scan(&user.About, &user.Email, &user.FullName), "PSQLUserStore updateByNickName")
@@ -116,10 +116,10 @@ func (P PSQLUserStore) UpdateByNickname(user *models.User) error {
 
 func (P PSQLUserStore) SelectByNickNameOrEmail(users *[]*models.User) error {
 	rows, err := P.db.Query(`
-		select About, Email, FullName, NickName
+		select About, Email, full_name, nick_name
 		from Users
-		where NickName = $1 or Email = $2
-`, (*users)[0].NickName, (*users)[0].Email)
+		where email = $1 and nick_name = $2
+`, (*users)[0].Email, (*users)[0].NickName)
 
 	if err != nil {
 		return errors.Wrap(err, "PSQLUserStore SelectByNickNameOrEmail query")
@@ -140,5 +140,5 @@ func (P PSQLUserStore) SelectByNickNameOrEmail(users *[]*models.User) error {
 		*users = append(*users, user)
 	}
 
-	return rows.Close()
+	return nil
 }

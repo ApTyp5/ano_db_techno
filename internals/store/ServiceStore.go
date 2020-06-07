@@ -1,9 +1,9 @@
 package store
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -13,16 +13,16 @@ type ServiceStore interface {
 }
 
 type PSQLServiceStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLServiceStore(db *sql.DB) ServiceStore {
+func CreatePSQLServiceStore(db *pgx.ConnPool) ServiceStore {
 	return PSQLServiceStore{db: db}
 }
 
 func (ss PSQLServiceStore) Status(status *models.Status) error {
 	row := ss.db.QueryRow(`
-		select PostNum, ForumNum, ThreadNum, UserNum
+		select post_num, forum_num, thread_num, user_num
 		from Status;
 `)
 	if err := row.Scan(&status.Post, &status.Forum, &status.Thread, &status.User); err != nil {
@@ -40,7 +40,7 @@ func (ss PSQLServiceStore) Clear() error {
 		truncate table Forums cascade ;
 		truncate table Users cascade ;
 
-		update status set forumnum = 0, usernum = 0, postnum = 0, threadnum = 0;
+		update status set forum_num = 0, user_num = 0, post_num = 0, thread_num = 0;
 `)
 
 	if err != nil {

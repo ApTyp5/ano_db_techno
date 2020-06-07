@@ -1,180 +1,155 @@
 package database
 
 import (
-	"database/sql"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx"
 )
 
-func CreateTables(db *sql.DB) {
+func CreateTables(db *pgx.ConnPool) {
 	_, err := db.Exec(`
 
-create or replace language plpgsql;
-create extension if not exists citext;
+CREATE OR REPLACE LANGUAGE plpgsql;
+CREATE EXTENSION IF NOT EXISTS citext;
 
-create table Users (
-	Id serial primary key,
-	NickName citext unique not null,
-	FullName text not null,
-	Email citext unique not null,
-	About text null
+CREATE TABLE users (
+	email citext UNIQUE NOT NULL ,
+	nick_name citext PRIMARY KEY ,
+	full_name text NOT NULL ,
+	about text NULL
 );
-
-create index on Users (id);
-create index on Users (NickName);
     
-create table Forums (
-	Id serial primary key,
-	Slug citext unique not null,
-	Title text not null,
-	Responsible integer references Users(Id) not null,
-	PostNum integer not null default 0,
-	ThreadNum integer not null default 0,
-	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
-);
-
-create index on Forums (Id);
-create index on Forums (Slug);
-
-create table Threads (
-	Id serial primary key,
-	Author integer references Users(Id) not null,
-	Forum citext references Forums(Slug) not null,
-	Created timestamptz not null default now(),
-	Message text not null,
-	Slug citext null,
-	Title text not null,
-	VoteNum integer default 0 not null
+CREATE TABLE forums (
+	slug citext PRIMARY KEY ,
+	title text NOT NULL,
+	responsible citext REFERENCES users(nick_name) NOT NULL ,
+	post_num integer NOT NULL DEFAULT 0,
+	thread_num integer NOT NULL DEFAULT 0
 -- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
 
-create index on Threads (ID);
-create index on Threads (Slug);
-
-create table Votes (
-	Author integer references Users(Id) not null,
-	Thread integer references Threads(Id) not null,
-	Voice integer not null,
-	primary key (Author, Thread),
-	check ( voice = 1 or voice = -1)
+CREATE TABLE threads (
+	id serial PRIMARY KEY ,
+	author citext REFERENCES users(nick_name) NOT NULL ,
+	forum citext REFERENCES forums(slug) NOT NULL,
+	created timestamptz NOT NULL DEFAULT now(),
+	message text NOT NULL ,
+	slug citext NULL ,
+	title text NOT NULL ,
+	vote_num integer default 0 NOT NULL 
+-- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
 
-create table Posts (
-    Id serial primary key ,
-    Parent integer references Posts(Id) default null check ( Id != Parent ),
-	Author integer references Users(Id) not null,
-	Thread integer references Threads(Id) not null,
-	Created timestamptz not null default now(),
-	IsEdited bool default false not null,
-	Message text not null
+CREATE TABLE votes (
+	author citext REFERENCES users(nick_name) NOT NULL ,
+	thread integer REFERENCES threads(id) NOT NULL ,
+	voice integer NOT NULL,
+	PRIMARY KEY (author, thread),
+	CHECK ( voice = 1 OR voice = -1)
 );
 
-
-create table Status (
-    ForumNum integer,
-    ThreadNum integer,
-    PostNum integer,
-    UserNum integer
+CREATE TABLE posts (
+    id serial PRIMARY KEY ,
+    parent integer REFERENCES posts(id) DEFAULT NULL,
+	author citext REFERENCES users(nick_name) NOT NULL ,
+	thread integer REFERENCES threads(id) NOT NULL ,
+	created timestamptz NOT NULL DEFAULT now(),
+	is_edited bool DEFAULT FALSE NOT NULL,
+	message text NOT NULL
 );
-insert into Status values (0, 0, 0, 0);
 
-create or replace function PostId(p Posts) returns integer as $Id$
-begin 
-	   return p.Id;
-end;
-$Id$ language plpgsql;
+CREATE TABLE status (
+    forum_num integer DEFAULT 0,
+    thread_num integer DEFAULT 0,
+    post_num integer DEFAULT 0,
+    user_num integer DEFAULT 0
+);
+INSERT INTO status DEFAULT VALUES ;
 
-create or replace function PostPar(p Posts) returns integer as $Parent$
-begin 
-    return p.Parent;
-end;
-$Parent$ language plpgsql;
-
-create or replace function setPostIsEdited() returns trigger as $setPostIsEdited$
+CREATE OR REPLACE FUNCTION set_post_is_edited() RETURNS TRIGGER AS $setPostIsEdited$
 	begin
-		if (not old.IsEdited) and (old.Message != new.Message) then
-			new.IsEdited := true;
+		if (not old.is_edited) and (old.message != new.message) then
+			new.is_edited := true;
 		end if;
 		return new;
 	end;
-$setPostIsEdited$ language plpgsql;
+$setPostIsEdited$ LANGUAGE plpgsql;
 
-create or replace function postNumInc() returns trigger as $postNumInc$ 
+CREATE OR REPLACE FUNCTION post_num_inc() RETURNS TRIGGER AS $postNumInc$
 	begin
-		update Forums set PostNum = PostNum + 1
-			where Id = (
-				select F.Id
+		update Forums set post_num = post_num + 1
+			where id = (
+				select F.id
 				from Threads t 
-					join Forums F on t.Forum = F.Slug
-				where new.Thread = t.Id
+					join Forums F on t.forum = F.slug
+				where new.thread = t.id
 			);	
-		update Status set PostNum = PostNum + 1;
+		update Status set post_num = post_num + 1;
 		return new;
 	end;
-$postNumInc$ language plpgsql;
+$postNumInc$ LANGUAGE plpgsql;
 
-create or replace function threadNumInc() returns trigger as $threadNumInc$ 
+CREATE OR REPLACE FUNCTION thread_num_inc() RETURNS TRIGGER AS $threadNumInc$ 
 	begin
-	    update Forums set ThreadNum = ThreadNum + 1
-	    	where Slug = new.forum;
-	    update Status set ThreadNum = ThreadNum + 1;
+	    update Forums set thread_num = thread_num + 1
+	    	where slug = new.forum;
+	    update Status set thread_num = thread_num + 1;
 	    return new;
 	end;
-$threadNumInc$ language plpgsql;
+$threadNumInc$ LANGUAGE plpgsql;
 
-create or replace function forumNumInc() returns trigger as $forumNumInc$
+CREATE OR REPLACE FUNCTION forum_num_inc() RETURNS TRIGGER AS $forumNumInc$
 	begin 
-   		update Status set ForumNum = ForumNum + 1;
+   		update Status set forum_num = forum_num + 1;
    		return new;
 	end;
-$forumNumInc$ language plpgsql;
+$forumNumInc$ LANGUAGE plpgsql;
 
-create or replace function threadRatingCount() returns trigger as $threadRatingCount$
+CREATE OR REPLACE FUNCTION thread_rating_count() RETURNS TRIGGER AS $threadRatingCount$
 	begin
-		update Threads set VoteNum = VoteNum + new.Voice
-	    	where Id = new.Thread;
+		update Threads set vote_num = vote_num + new.voice
+	    	where id = new.thread;
 		return new;
 	end;
-$threadRatingCount$ language plpgsql;
+$threadRatingCount$ LANGUAGE plpgsql;
 
-create or replace function threadRatingRecount() returns trigger as $threadRatingCount$
+CREATE OR REPLACE FUNCTION thread_rating_recount() RETURNS TRIGGER AS $threadRatingCount$
 	begin
-	    if new.Voice = old.Voice then
+	    if new.voice = old.voice then
 			return new;
 		end if;
 	    
-		update Threads set VoteNum = VoteNum + new.Voice - old.Voice
-	    	where Id = new.Thread;
+		update Threads set vote_num = vote_num + new.voice - old.voice
+	    	where id = new.thread;
 		return new;
 	end;
-$threadRatingCount$ language plpgsql;
+$threadRatingCount$ LANGUAGE plpgsql;
 
-create or replace function userNumInc() returns trigger as $userNumInc$
+CREATE OR REPLACE FUNCTION user_num_inc() RETURNS TRIGGER AS $userNumInc$
 	begin
-		update Status set UserNum = UserNum + 1;
+		update Status set user_num = user_num + 1;
 		return new;
 	end;
-$userNumInc$ language plpgsql;
+$userNumInc$ LANGUAGE plpgsql;
 
-create or replace function postsSetIdCheckForum() returns trigger as $postsSetId$
+CREATE OR REPLACE FUNCTION post_set_id_check_parent() RETURNS TRIGGER AS $postsSetId$
 	begin
-	    if new.Parent is not null then
-	        if new.Thread != (select t.Id from Threads t join Posts P on t.Id = P.Thread where P.Id = new.Parent) then
+	    if new.parent is not null then
+	        if new.thread != (select t.id from Threads t join Posts P on t.id = P.thread where P.id = new.parent) then
 				raise EXCEPTION 'Parent post was created in another thread';
 			end if;
 		end if;
 	    
 		return new;
 	end;
-$postsSetId$ language plpgsql;
+$postsSetId$ LANGUAGE plpgsql;
 
-create trigger postsSetId before insert on Posts for each row execute procedure postsSetIdCheckForum();
-create trigger postNumInc after insert on Posts for each row execute procedure postNumInc();
-create trigger threadNumInc after insert on	Threads for each row execute procedure threadNumInc();
-create trigger threadRatingCount after insert on Votes for each row execute procedure threadRatingCount();
-create trigger threadRatingRecount after update on Votes for each row execute procedure threadRatingRecount();
-create trigger setPostIsEdited before update on Posts for each row execute procedure setPostIsEdited();
-create trigger forumNumInc after insert on Forums for each row execute procedure forumNumInc();
-create trigger userNumInc after insert on Users for each row execute procedure userNumInc();
+CREATE TRIGGER posts_check_par BEFORE INSERT ON posts FOR EACH ROW EXECUTE PROCEDURE post_set_id_check_parent();
+CREATE TRIGGER post_num_inc AFTER INSERT ON postS FOR EACH ROW EXECUTE PROCEDURE  post_num_inc();
+CREATE TRIGGER thread_num_inc AFTER INSERT ON threads FOR EACH ROW EXECUTE PROCEDURE  thread_num_inc();
+CREATE TRIGGER thread_rating_count AFTER INSERT ON votes FOR EACH ROW EXECUTE PROCEDURE  thread_rating_count();
+CREATE TRIGGER thread_rating_recount AFTER INSERT ON votes FOR EACH ROW EXECUTE PROCEDURE  thread_rating_recount();
+CREATE TRIGGER set_post_is_edited BEFORE UPDATE ON posts FOR EACH ROW EXECUTE PROCEDURE  set_post_is_edited();
+CREATE TRIGGER forum_num_inc AFTER INSERT ON forums FOR EACH ROW EXECUTE PROCEDURE  forum_num_inc();
+CREATE TRIGGER user_num_inc AFTER INSERT ON users FOR EACH ROW EXECUTE PROCEDURE user_num_inc();
 `)
 	if err != nil {
 		panic(err)
