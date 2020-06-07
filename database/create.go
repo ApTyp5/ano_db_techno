@@ -26,7 +26,7 @@ CREATE TABLE forums (
 -- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
 
-create index on forums using hash(slug);
+create index forum_hash_idx on forums using hash(slug);
 
 CREATE TABLE threads (
 	id serial PRIMARY KEY ,
@@ -40,7 +40,7 @@ CREATE TABLE threads (
 -- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
 
-create index on threads using hash(id);
+create index threads_hash_idx on threads using hash(id);
 create index on	threads using hash(slug) where slug != '';
 
 CREATE TABLE votes (
@@ -60,8 +60,6 @@ CREATE TABLE posts (
 	is_edited bool DEFAULT FALSE NOT NULL,
 	message text NOT NULL
 );
-
-create index on posts using hash(id);
 
 CREATE TABLE status (
     forum_num integer DEFAULT 0,
