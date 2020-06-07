@@ -55,10 +55,10 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 	var row *sql.Row
 	if thread.Slug == "" {
 		selectQuery += "where th.Id = $1;"
-		row = P.db.QueryRow(selectQuery, thread.Id)
+		row = tx.QueryRow(selectQuery, thread.Id)
 	} else {
 		selectQuery += "where th.Slug = $1;"
-		row = P.db.QueryRow(selectQuery, thread.Slug)
+		row = tx.QueryRow(selectQuery, thread.Slug)
 	}
 
 	if err = errors.Wrap(row.Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.Message,
@@ -81,10 +81,10 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 				values ((select Id from Users where NickName = $1),`
 	if thread.Slug == "" {
 		query += "$2, $3);"
-		_, err = P.db.Exec(query, vote.NickName, thread.Id, vote.Voice)
+		_, err = tx.Exec(query, vote.NickName, thread.Id, vote.Voice)
 	} else {
 		query += "(select Id from Threads where Slug = $2), $3);"
-		_, err = P.db.Exec(query, vote.NickName, thread.Slug, vote.Voice)
+		_, err = tx.Exec(query, vote.NickName, thread.Slug, vote.Voice)
 	}
 
 	if err != nil {
@@ -102,16 +102,18 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 	var row *sql.Row
 	if thread.Slug == "" {
 		selectQuery += "where th.Id = $1;"
-		row = P.db.QueryRow(selectQuery, thread.Id)
+		row = tx.QueryRow(selectQuery, thread.Id)
 	} else {
 		selectQuery += "where th.Slug = $1;"
-		row = P.db.QueryRow(selectQuery, thread.Slug)
+		row = tx.QueryRow(selectQuery, thread.Slug)
 	}
 
 	if err = errors.Wrap(row.Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.Message,
 		&thread.Id, &thread.Title, &thread.Votes, &thread.Slug), "PSQLVoteStore Insert"); err != nil {
 		return err
 	}
+
+	thread.Votes += vote.Voice
 
 	return tx.Commit()
 }

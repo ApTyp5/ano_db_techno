@@ -7,7 +7,8 @@ import (
 	"github.com/ApTyp5/new_db_techno/logs"
 	mv "github.com/ApTyp5/new_db_techno/middleware"
 	fasthttpRouter "github.com/fasthttp/router"
-	_ "github.com/lib/pq"
+
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/valyala/fasthttp"
 )
 

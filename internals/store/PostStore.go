@@ -106,7 +106,7 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 		}
 	}
 
-	_, err = P.db.Exec(`
+	_, err = tx.Exec(`
 		create temp table if not exists insPosts (
 			Id serial,
 			NickName text,
@@ -114,8 +114,7 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 			Message text,
 			Parent integer,
 			ThreadSlug text 
-		);
-		truncate insPosts;
+		) on commit drop;
 
 	insert into insPosts (NickName, ThreadSlug, Message, Parent) values 
 ` + strings.Join(valueArgs, ","))
@@ -134,7 +133,7 @@ func (P PSQLPostStore) InsertPostsByThreadSlug(thread *models.Thread, posts *[]*
 				IsEdited, Message, coalesce(Posts.Parent, 0);
 		`
 
-	rows, err := P.db.Query(query)
+	rows, err := tx.Query(query)
 
 	logs.Info("QUERY:\n", query)
 
@@ -186,7 +185,7 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 		}
 	}
 
-	_, err = P.db.Exec(`
+	_, err = tx.Exec(`
 		create temp table if not exists insPosts (
 			Id serial,
 			NickName text,
@@ -194,8 +193,7 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 			Message text,
 			Parent integer,
 			ThreadSlug text
-		);
-		truncate insPosts;
+		) on commit drop;
 
 	insert into insPosts (NickName, Thread, Message, Parent) values 
 ` + strings.Join(valueArgs, ","))
@@ -204,7 +202,8 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 	}
 
 	query :=
-		`insert into Posts (Author, Thread, Message, Parent)
+		`
+		insert into Posts (Author, Thread, Message, Parent)
 			select u.Id, ip.Thread, ip.Message, ip.Parent
 			from insPosts ip
 				join users u on ip.NickName = u.nickname
@@ -213,7 +212,7 @@ func (P PSQLPostStore) InsertPostsByThreadId(thread *models.Thread, posts *[]*mo
 				IsEdited, Message, coalesce(Posts.Parent, 0);
 		`
 
-	rows, err := P.db.Query(query)
+	rows, err := tx.Query(query)
 
 	logs.Info("QUERY:\n", query)
 

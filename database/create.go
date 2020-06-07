@@ -19,8 +19,8 @@ create table Users (
 	About text null
 );
 
-create unique index on Users (id);
-create unique index on Users (NickName);
+create index on Users (id);
+create index on Users (NickName);
     
 create table Forums (
 	Id serial primary key,
