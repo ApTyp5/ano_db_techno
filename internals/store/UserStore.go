@@ -2,6 +2,7 @@ package store
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
+	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strconv"
@@ -115,10 +116,11 @@ func (P PSQLUserStore) UpdateByNickname(user *models.User) error {
 }
 
 func (P PSQLUserStore) SelectByNickNameOrEmail(users *[]*models.User) error {
+	logs.Info("Users: ", "email: ", (*users)[0].Email, "nickName: ", (*users)[0].NickName)
 	rows, err := P.db.Query(`
 		select About, Email, full_name, nick_name
 		from Users
-		where email = $1 and nick_name = $2
+		where email = $1 and nick_name = $2;
 `, (*users)[0].Email, (*users)[0].NickName)
 
 	if err != nil {
