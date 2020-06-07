@@ -19,9 +19,7 @@ func main() {
 
 	db := database.Connect(connStr, 70) // panic
 	defer db.Close()                    // panic
-
-	database.DropTables(db)   // no-panic
-	database.CreateTables(db) // panic
+	database.DropTables(db)             // no-panic
 	defer func() { database.DropTables(db) }()
 
 	forumHandlers := delivery.CreateForumHandlerManager(db)

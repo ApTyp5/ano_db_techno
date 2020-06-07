@@ -14,10 +14,13 @@ EXPOSE 5432
 
 RUN apt-get -y update && apt-get -y install postgresql
 USER postgres
+ENV PGPASSWORD="docker"
 
+COPY /database/create.sql .
 RUN /etc/init.d/postgresql start &&\
     psql --command "CREATE USER docker WITH SUPERUSER PASSWORD 'docker';" &&\
     createdb -O docker docker &&\
+    psql -U docker -d docker -f ./create.sql &&\
     /etc/init.d/postgresql stop
 
 RUN echo "host all  all    0.0.0.0/0  md5" >> /etc/postgresql/10/main/pg_hba.conf
