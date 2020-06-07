@@ -61,7 +61,7 @@ CREATE TABLE posts (
 	message text NOT NULL
 );
 
-create index concurrently on posts using hash(id);
+create index on posts using hash(id);
 
 CREATE TABLE status (
     forum_num integer DEFAULT 0,
