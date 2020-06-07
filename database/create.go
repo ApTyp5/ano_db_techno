@@ -11,8 +11,8 @@ CREATE OR REPLACE LANGUAGE plpgsql;
 CREATE EXTENSION IF NOT EXISTS citext;
 
 CREATE TABLE users (
-	email citext UNIQUE NOT NULL ,
-	nick_name citext PRIMARY KEY ,
+	email text UNIQUE NOT NULL ,
+	nick_name text PRIMARY KEY ,
 	full_name text NOT NULL ,
 	about text NULL
 );

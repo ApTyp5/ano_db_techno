@@ -27,15 +27,16 @@ func CreateRDBUserUseCase(db *pgx.ConnPool) UserUseCase {
 func (uc RDBUserUseCase) Create(users *[]*models.User, err *error) int {
 	prefix := "RDB users use case create"
 
-	if *err = errors.Wrap(uc.us.SelectByNickNameOrEmail(users), prefix); *err == nil {
-		*err = errors.New("users with this name or email exists")
-		return 409
-	}
-
 	if *err = errors.Wrap(uc.us.Insert((*users)[0]), prefix); *err == nil {
 		return 201
 	}
 	logs.Info("not created: ", (*err).Error())
+
+	if *err = errors.Wrap(uc.us.SelectByNickNameOrEmail(users), prefix); *err == nil {
+		return 409
+	}
+
+	logs.Info("love you: ", (*err).Error())
 
 	return 600
 }
