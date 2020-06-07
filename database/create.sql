@@ -18,7 +18,6 @@ CREATE TABLE forums (
 );
 
 create index forum_hash_idx on forums using hash(slug);
-cluster forums using forum_hash_idx;
 
 CREATE TABLE threads (
                          id serial PRIMARY KEY ,
@@ -33,7 +32,6 @@ CREATE TABLE threads (
 );
 
 create index threads_hash_idx on threads using hash(id);
-cluster threads using threads_hash_idx;
 create index on	threads using hash(slug) where slug != '';
 
 CREATE TABLE votes (
@@ -150,7 +148,6 @@ CREATE TRIGGER user_num_inc AFTER INSERT ON users FOR EACH ROW EXECUTE PROCEDURE
 
 
 ALTER SYSTEM SET checkpoint_completion_target = '0.9';
-ALTER SYSTEM SET max_parallel_maintenance_workers = '2';
 ALTER SYSTEM SET wal_buffers = '6912kB';
 ALTER SYSTEM SET max_worker_processes = '4';
 ALTER SYSTEM SET default_statistics_target = '100';
