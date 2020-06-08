@@ -1,8 +1,8 @@
 package store
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -12,10 +12,10 @@ type VoteStore interface {
 }
 
 type PSQLVoteStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLVoteStore(db *sql.DB) VoteStore {
+func CreatePSQLVoteStore(db *pgx.ConnPool) VoteStore {
 	return PSQLVoteStore{db: db}
 }
 
@@ -51,7 +51,7 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 		from Threads th
 			`
 
-	var row *sql.Row
+	var row *pgx.Row
 	if thread.Slug == "" {
 		selectQuery += "where th.Id = $1;"
 		row = tx.QueryRow(selectQuery, thread.Id)
@@ -96,7 +96,7 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 		from Threads th
 			`
 
-	var row *sql.Row
+	var row *pgx.Row
 	if thread.Slug == "" {
 		selectQuery += "where th.Id = $1;"
 		row = tx.QueryRow(selectQuery, thread.Id)

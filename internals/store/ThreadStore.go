@@ -1,11 +1,12 @@
 package store
 
 import (
-	"database/sql"
 	"fmt"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
+	"time"
 )
 
 type ThreadStore interface {
@@ -20,10 +21,10 @@ type ThreadStore interface {
 }
 
 type PSQLThreadStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLThreadStore(db *sql.DB) ThreadStore {
+func CreatePSQLThreadStore(db *pgx.ConnPool) ThreadStore {
 	return PSQLThreadStore{db: db}
 }
 
@@ -40,10 +41,10 @@ func (P PSQLThreadStore) Count(amount *uint) error {
 }
 
 func (P PSQLThreadStore) Insert(thread *models.Thread) error {
-	var row *sql.Row
+	var row *pgx.Row
 	logs.Info("INSERTING THREAD (fslug): '" + thread.Forum + "';")
 
-	if len(thread.Created) == 0 {
+	if time.Time.IsZero(thread.Created) {
 		row = P.db.QueryRow(`
 		insert into Threads (Author, Forum, Message, Slug, Title) values 
 			($1, (SELECT slug from forums where forums.slug = $2), $3, (coalesce(nullif($4, ''))), $5)
@@ -79,7 +80,7 @@ func (P PSQLThreadStore) Insert(thread *models.Thread) error {
 
 func (P PSQLThreadStore) SelectByForum(threads *[]*models.Thread, forum *models.Forum, limit int, since string, desc bool) error {
 	var (
-		rows *sql.Rows
+		rows *pgx.Rows
 		err  error
 	)
 

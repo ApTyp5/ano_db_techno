@@ -1,25 +1,23 @@
 package main
 
 import (
-	_ "database/sql"
 	"github.com/ApTyp5/new_db_techno/database"
 	"github.com/ApTyp5/new_db_techno/internals/delivery"
 	"github.com/ApTyp5/new_db_techno/logs"
 	mv "github.com/ApTyp5/new_db_techno/middleware"
 	fasthttpRouter "github.com/fasthttp/router"
 
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/jackc/pgx"
 	"github.com/valyala/fasthttp"
 )
 
 func main() {
 	init := fasthttpRouter.New()
 	router := init.Group("/api")
-	connStr := "user=docker database=docker host=0.0.0.0 port=5432 password=docker"
+	connStr := "user=docker database=docker host=0.0.0.0 port=5432 password=docker sslmode=disable"
 
 	db := database.Connect(connStr, 70) // panic
 	defer db.Close()                    // panic
-	database.DropTables(db)             // no-panic
 	defer func() { database.DropTables(db) }()
 
 	forumHandlers := delivery.CreateForumHandlerManager(db)

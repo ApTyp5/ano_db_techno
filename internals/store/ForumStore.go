@@ -1,8 +1,8 @@
 package store
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -13,10 +13,10 @@ type ForumStore interface {
 }
 
 type PSQLForumStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLForumStore(db *sql.DB) ForumStore {
+func CreatePSQLForumStore(db *pgx.ConnPool) ForumStore {
 	return PSQLForumStore{
 		db: db,
 	}

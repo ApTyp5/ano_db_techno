@@ -125,19 +125,19 @@ begin
 end;
 $userNumInc$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION post_set_id_check_parent() RETURNS TRIGGER AS $postsSetId$
+CREATE OR REPLACE FUNCTION post_check_parent() RETURNS TRIGGER AS $posts_check_parent$
 begin
     if new.parent is not null then
-        if new.thread != (select t.id from Threads t join Posts P on t.id = P.thread where P.id = new.parent) then
+        if new.thread != (select P.thread from Posts P where P.id = new.parent) then
             raise EXCEPTION 'Parent post was created in another thread';
         end if;
     end if;
 
     return new;
 end;
-$postsSetId$ LANGUAGE plpgsql;
+$posts_check_parent$ LANGUAGE plpgsql;
 
-CREATE TRIGGER posts_check_par BEFORE INSERT ON posts FOR EACH ROW EXECUTE PROCEDURE post_set_id_check_parent();
+CREATE TRIGGER posts_check_parent BEFORE INSERT ON posts FOR EACH ROW EXECUTE PROCEDURE post_check_parent();
 CREATE TRIGGER post_num_inc AFTER INSERT ON postS FOR EACH ROW EXECUTE PROCEDURE  post_num_inc();
 CREATE TRIGGER thread_num_inc AFTER INSERT ON threads FOR EACH ROW EXECUTE PROCEDURE  thread_num_inc();
 CREATE TRIGGER thread_rating_count AFTER INSERT ON votes FOR EACH ROW EXECUTE PROCEDURE  thread_rating_count();

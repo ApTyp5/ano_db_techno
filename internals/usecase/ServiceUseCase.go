@@ -1,10 +1,10 @@
 package usecase
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -17,7 +17,7 @@ type RDBServiceUseCase struct {
 	ss store.ServiceStore
 }
 
-func CreateRDBServiceUseCase(db *sql.DB) ServiceUseCase {
+func CreateRDBServiceUseCase(db *pgx.ConnPool) ServiceUseCase {
 	return RDBServiceUseCase{
 		ss: store.CreatePSQLServiceStore(db),
 	}

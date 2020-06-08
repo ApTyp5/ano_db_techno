@@ -1,10 +1,10 @@
 package usecase
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -20,7 +20,7 @@ type RDBPostUseCase struct {
 	ts store.ThreadStore
 }
 
-func CreateRDBPostUseCase(db *sql.DB) PostUseCase {
+func CreateRDBPostUseCase(db *pgx.ConnPool) PostUseCase {
 	return RDBPostUseCase{
 		ps: store.CreatePSQLPostStore(db),
 		us: store.CreatePSQLUserStore(db),

@@ -1,9 +1,9 @@
 package store
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strconv"
 )
@@ -17,10 +17,10 @@ type UserStore interface {
 }
 
 type PSQLUserStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLUserStore(db *sql.DB) UserStore {
+func CreatePSQLUserStore(db *pgx.ConnPool) UserStore {
 	return PSQLUserStore{db: db}
 }
 
@@ -54,7 +54,7 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 		order by u.nick_name ` + dsc + lmt + ";"
 
 	var (
-		rows *sql.Rows
+		rows *pgx.Rows
 		err  error
 	)
 

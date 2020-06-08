@@ -1,10 +1,10 @@
 package usecase
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -18,7 +18,7 @@ type RDBUserUseCase struct {
 	us store.UserStore
 }
 
-func CreateRDBUserUseCase(db *sql.DB) UserUseCase {
+func CreateRDBUserUseCase(db *pgx.ConnPool) UserUseCase {
 	return RDBUserUseCase{
 		us: store.CreatePSQLUserStore(db),
 	}

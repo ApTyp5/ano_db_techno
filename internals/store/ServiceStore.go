@@ -1,9 +1,9 @@
 package store
 
 import (
-	"database/sql"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
 
@@ -13,10 +13,10 @@ type ServiceStore interface {
 }
 
 type PSQLServiceStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLServiceStore(db *sql.DB) ServiceStore {
+func CreatePSQLServiceStore(db *pgx.ConnPool) ServiceStore {
 	return PSQLServiceStore{db: db}
 }
 

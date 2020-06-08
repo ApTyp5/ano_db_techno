@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type Error struct {
 	Message string `json:"message"`
 }
@@ -13,14 +15,14 @@ type Forum struct {
 }
 
 type Post struct {
-	Author   string `json:"author"`
-	Created  string `json:"created"`
-	Forum    string `json:"forum"`
-	Id       int    `json:"id"`
-	IsEdited bool   `json:"isEdited"`
-	Message  string `json:"message"` // updated
-	Parent   int    `json:"parent"`
-	Thread   int    `json:"thread"`
+	Author   string    `json:"author"`
+	Created  time.Time `json:"created"`
+	Forum    string    `json:"forum"`
+	Id       int       `json:"id"`
+	IsEdited bool      `json:"isEdited"`
+	Message  string    `json:"message"` // updated
+	Parent   int       `json:"parent"`
+	Thread   int       `json:"thread"`
 }
 
 type Status struct {
@@ -31,14 +33,14 @@ type Status struct {
 }
 
 type Thread struct {
-	Author  string `json:"author"`
-	Created string `json:"created"`
-	Forum   string `json:"forum"`
-	Id      int    `json:"id"`
-	Message string `json:"message"` // updated
-	Slug    string `json:"slug"`
-	Title   string `json:"title"` // updated
-	Votes   int    `json:"votes"`
+	Author  string    `json:"author"`
+	Created time.Time `json:"created"`
+	Forum   string    `json:"forum"`
+	Id      int       `json:"id"`
+	Message string    `json:"message"` // updated
+	Slug    string    `json:"slug"`
+	Title   string    `json:"title"` // updated
+	Votes   int       `json:"votes"`
 }
 
 type User struct {

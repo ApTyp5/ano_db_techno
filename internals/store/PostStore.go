@@ -1,13 +1,11 @@
 package store
 
 import (
-	"database/sql"
-	"fmt"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strconv"
-	"strings"
 )
 
 type PostStore interface {
@@ -24,10 +22,10 @@ type PostStore interface {
 }
 
 type PSQLPostStore struct {
-	db *sql.DB
+	db *pgx.ConnPool
 }
 
-func CreatePSQLPostStore(db *sql.DB) PostStore {
+func CreatePSQLPostStore(db *pgx.ConnPool) PostStore {
 	return PSQLPostStore{db: db}
 }
 
@@ -81,7 +79,6 @@ func (P PSQLPostStore) UpdateById(post *models.Post) error {
 }
 
 func (P PSQLPostStore) InsertPostsByThread(thread *models.Thread, posts *[]*models.Post) error {
-
 	tx, err := P.db.Begin()
 	if err != nil {
 		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
@@ -102,41 +99,24 @@ func (P PSQLPostStore) InsertPostsByThread(thread *models.Thread, posts *[]*mode
 		return nil
 	}
 
-	valueArgs := make([]string, 0, len(*posts))
-	for i := range *posts {
-		nick := (*posts)[i].Author
-		thid := thread.Id
-		mess := (*posts)[i].Message
-		parn := (*posts)[i].Parent
-
-		valueArgs = append(valueArgs, fmt.Sprintf("('%s', %d, '%s'", nick, thid, mess))
-
-		if parn == 0 {
-			valueArgs = append(valueArgs, "null)")
-		} else {
-			valueArgs = append(valueArgs, fmt.Sprintf("%d)", parn))
-		}
-	}
-
-	query := "INSERT INTO posts (author, thread, message, parent) values " + strings.Join(valueArgs, ",") +
-		"RETURNING id, thread, created, is_edited, message, coalesce(parent, 0)"
-
-	rows, err := tx.Query(query)
+	stat, err := tx.Prepare("insert_post", "INSERT INTO posts (author, thread, message, parent) values "+
+		"($1, $2, $3, nullif($4, 0))"+
+		"RETURNING id, thread, created, is_edited, message, coalesce(parent, 0)")
 
 	if err != nil {
-		return errors.Wrap(err, "PSQLPostStore insertPostsByThread main insert")
+		return errors.Wrap(err, "PSQLPostStore insertPostsByThread prepare")
 	}
-	defer rows.Close()
 
-	i := 0
-	for rows.Next() {
-		if err := rows.Scan(&(*posts)[i].Id, &(*posts)[i].Thread, &(*posts)[i].Created,
+	for i := range *posts {
+		var row *pgx.Row
+		row = tx.QueryRow(stat.Name, (*posts)[i].Author, thread.Id, (*posts)[i].Message, (*posts)[i].Parent)
+
+		if err := row.Scan(&(*posts)[i].Id, &(*posts)[i].Thread, &(*posts)[i].Created,
 			&(*posts)[i].IsEdited, &(*posts)[i].Message, &(*posts)[i].Parent); err != nil {
 			return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id SCAN error")
 		}
 
 		(*posts)[i].Forum = thread.Forum
-		i++
 	}
 
 	return tx.Commit()
@@ -172,7 +152,7 @@ func (P PSQLPostStore) SelectByThreadFlat(posts *[]*models.Post, thread *models.
 		Limit $2;
 			`
 	var (
-		rows *sql.Rows
+		rows *pgx.Rows
 		err  error
 	)
 	if thread.Slug == "" {
@@ -213,7 +193,7 @@ func (P PSQLPostStore) SelectByThreadTree(posts *[]*models.Post, thread *models.
 	var (
 		hasSince = since >= 0
 		hasSlug  = thread.Slug != ""
-		rows     *sql.Rows
+		rows     *pgx.Rows
 		err      error
 		withPart = ""
 		query    = ""
@@ -307,7 +287,7 @@ func (P PSQLPostStore) SelectByThreadParentTree(posts *[]*models.Post, thread *m
 		hasLimit = limit > 0
 		hasSince = since >= 0
 		hasSlug  = thread.Slug != ""
-		rows     *sql.Rows
+		rows     *pgx.Rows
 		err      error
 
 		query = ""
