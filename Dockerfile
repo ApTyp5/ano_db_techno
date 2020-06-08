@@ -35,4 +35,5 @@ VOLUME ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 USER root
 
 COPY --from=builder ./build .
-CMD service postgresql start && psql -h localhost -d docker -U docker -p 5432 -a -q -f  ./create.sql && ./server
+COPY --from=builder ./build/database/create.sql /assets/db/postgres/base.sql
+CMD service postgresql start && psql -h localhost -U docker -d docker -p 5432 -a -q -f  ./database/create.sql && ./server
