@@ -5,17 +5,15 @@ import (
 	"github.com/ApTyp5/new_db_techno/internals/delivery"
 	_ "github.com/jackc/pgx"
 	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
-	"github.com/tiramiseb/echo-humanlog"
 )
 
 func main() {
 	e := echo.New()
-	e.Logger.SetOutput(humanlog.New(e.Logger.Output()))
-	lconfig := middleware.LoggerConfig{
-		Format: "${time_rfc3339} [ HTTP] ${remote_ip} \"${method} ${uri}\" ${status} (in: ${bytes_in}, out: ${bytes_out}, latency: ${latency_human})\n",
-	}
-	e.Use(middleware.LoggerWithConfig(lconfig))
+	//e.Logger.SetOutput(humanlog.New(e.Logger.Output()))
+	//lconfig := middleware.LoggerConfig{
+	//	Format: "${time_rfc3339} [ HTTP] ${remote_ip} \"${method} ${uri}\" ${status} (in: ${bytes_in}, out: ${bytes_out}, latency: ${latency_human})\n",
+	//}
+	//e.Use(middleware.LoggerWithConfig(lconfig))
 	group := e.Group("/api")
 
 	connStr := "user=docker database=docker host=0.0.0.0 port=5432 password=docker sslmode=disable"
