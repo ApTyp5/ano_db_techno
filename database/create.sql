@@ -60,16 +60,16 @@ CREATE TABLE status (
 );
 INSERT INTO status DEFAULT VALUES ;
 
-CREATE OR REPLACE FUNCTION set_post_is_edited() RETURNS TRIGGER AS $setPostIsEdited$
+CREATE OR REPLACE FUNCTION set_post_is_edited() RETURNS TRIGGER AS $set_post_is_edited$
 begin
     if (not old.is_edited) and (old.message != new.message) then
         new.is_edited := true;
     end if;
     return new;
 end;
-$setPostIsEdited$ LANGUAGE plpgsql;
+$set_post_is_edited$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION post_num_inc() RETURNS TRIGGER AS $postNumInc$
+CREATE OR REPLACE FUNCTION post_num_inc() RETURNS TRIGGER AS $post_num_inc$
 begin
     update Forums set post_num = post_num + 1
     where slug = (
@@ -80,33 +80,33 @@ begin
     update Status set post_num = post_num + 1;
     return new;
 end;
-$postNumInc$ LANGUAGE plpgsql;
+$post_num_inc$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION thread_num_inc() RETURNS TRIGGER AS $threadNumInc$
+CREATE OR REPLACE FUNCTION thread_num_inc() RETURNS TRIGGER AS $thread_num_inc$
 begin
     update Forums set thread_num = thread_num + 1
     where slug = new.forum;
     update Status set thread_num = thread_num + 1;
     return new;
 end;
-$threadNumInc$ LANGUAGE plpgsql;
+$thread_num_inc$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION forum_num_inc() RETURNS TRIGGER AS $forumNumInc$
+CREATE OR REPLACE FUNCTION forum_num_inc() RETURNS TRIGGER AS $forum_num_inc$
 begin
     update Status set forum_num = forum_num + 1;
     return new;
 end;
-$forumNumInc$ LANGUAGE plpgsql;
+$forum_num_inc$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION thread_rating_count() RETURNS TRIGGER AS $threadRatingCount$
+CREATE OR REPLACE FUNCTION thread_rating_count() RETURNS TRIGGER AS $thread_rating_count$
 begin
     update Threads set vote_num = vote_num + new.voice
     where id = new.thread;
     return new;
 end;
-$threadRatingCount$ LANGUAGE plpgsql;
+$thread_rating_count$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION thread_rating_recount() RETURNS TRIGGER AS $threadRatingCount$
+CREATE OR REPLACE FUNCTION thread_rating_recount() RETURNS TRIGGER AS $thread_rating_recount$
 begin
     if new.voice = old.voice then
         return new;
@@ -116,16 +116,16 @@ begin
     where id = new.thread;
     return new;
 end;
-$threadRatingCount$ LANGUAGE plpgsql;
+$thread_rating_recount$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION user_num_inc() RETURNS TRIGGER AS $userNumInc$
+CREATE OR REPLACE FUNCTION user_num_inc() RETURNS TRIGGER AS $user_num_inc$
 begin
     update Status set user_num = user_num + 1;
     return new;
 end;
-$userNumInc$ LANGUAGE plpgsql;
+$user_num_inc$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION post_check_parent() RETURNS TRIGGER AS $posts_check_parent$
+CREATE OR REPLACE FUNCTION post_check_parent() RETURNS TRIGGER AS $post_check_parent$
 begin
     if new.parent is not null then
         if new.thread != (select P.thread from Posts P where P.id = new.parent) then
@@ -135,7 +135,7 @@ begin
 
     return new;
 end;
-$posts_check_parent$ LANGUAGE plpgsql;
+$post_check_parent$ LANGUAGE plpgsql;
 
 CREATE TRIGGER posts_check_parent BEFORE INSERT ON posts FOR EACH ROW EXECUTE PROCEDURE post_check_parent();
 CREATE TRIGGER post_num_inc AFTER INSERT ON postS FOR EACH ROW EXECUTE PROCEDURE  post_num_inc();

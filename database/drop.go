@@ -24,3 +24,17 @@ drop table if exists Status;
 		logs.Error(err)
 	}
 }
+
+func TruncTables(db *pgx.ConnPool) {
+	_, err := db.Exec(`
+truncate table if exists Votes;
+truncate table if exists Posts;
+truncate table if exists Threads;
+truncate table if exists Forums;
+truncate table if exists Users;
+truncate table if exists Status;
+`)
+	if err != nil {
+		logs.Error(err)
+	}
+}

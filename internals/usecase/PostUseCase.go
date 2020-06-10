@@ -6,11 +6,12 @@ import (
 	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
+	"net/http"
 )
 
 type PostUseCase interface {
-	Details(postFull *models.PostFull, err *error, related []string) int // /post/{id}/details
-	Edit(post *models.Post, err *error) int                              // /post/{id}/details
+	Details(postFull *models.PostFull, related []string) (int, interface{}) // /post/{id}/details
+	Edit(post *models.Post) (int, interface{})                              // /post/{id}/details
 }
 
 type RDBPostUseCase struct {
@@ -29,11 +30,13 @@ func CreateRDBPostUseCase(db *pgx.ConnPool) PostUseCase {
 	}
 }
 
-func (uc RDBPostUseCase) Details(postFull *models.PostFull, err *error, related []string) int {
+func (uc RDBPostUseCase) Details(postFull *models.PostFull, related []string) (int, interface{}) {
 	prefix := "RDBPostUseCase details"
 
-	if *err = errors.Wrap(uc.ps.SelectById(postFull.Post), prefix); *err != nil {
-		return 404
+	logs.Info("post id: ", postFull.Post.Id)
+
+	if err := errors.Wrap(uc.ps.SelectById(postFull.Post), prefix); err != nil {
+		return http.StatusNotFound, wrapStrError("post not found")
 	}
 
 	for _, str := range related {
@@ -61,19 +64,19 @@ func (uc RDBPostUseCase) Details(postFull *models.PostFull, err *error, related 
 		}
 	}
 
-	return 200
+	return http.StatusOK, postFull
 }
 
-func (uc RDBPostUseCase) Edit(post *models.Post, err *error) int {
+func (uc RDBPostUseCase) Edit(post *models.Post) (int, interface{}) {
 	if post.Message == "" {
-		if *err = errors.Wrap(uc.ps.SelectById(post), "RDBPostUseCase Edit"); *err != nil {
-			return 404
+		if err := errors.Wrap(uc.ps.SelectById(post), "RDBPostUseCase Edit"); err != nil {
+			return http.StatusNotFound, wrapStrError("post not found")
 		}
-		return 200
+		return http.StatusOK, post
 	}
 
-	if *err = errors.Wrap(uc.ps.UpdateById(post), "RDBPostUseCase Edit"); *err != nil {
-		return 404
+	if err := errors.Wrap(uc.ps.UpdateById(post), "RDBPostUseCase Edit"); err != nil {
+		return http.StatusNotFound, wrapStrError("post not found")
 	}
-	return 200
+	return http.StatusOK, post
 }

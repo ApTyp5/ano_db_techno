@@ -3,78 +3,84 @@ package main
 import (
 	"github.com/ApTyp5/new_db_techno/database"
 	"github.com/ApTyp5/new_db_techno/internals/delivery"
-	"github.com/ApTyp5/new_db_techno/logs"
-	mv "github.com/ApTyp5/new_db_techno/middleware"
-	fasthttpRouter "github.com/fasthttp/router"
-
 	_ "github.com/jackc/pgx"
-	"github.com/valyala/fasthttp"
+	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
+	"github.com/tiramiseb/echo-humanlog"
 )
 
 func main() {
-	init := fasthttpRouter.New()
-	router := init.Group("/api")
+	e := echo.New()
+	e.Logger.SetOutput(humanlog.New(e.Logger.Output()))
+	lconfig := middleware.LoggerConfig{
+		Format: "${time_rfc3339} [ HTTP] ${remote_ip} \"${method} ${uri}\" ${status} (in: ${bytes_in}, out: ${bytes_out}, latency: ${latency_human})\n",
+	}
+	e.Use(middleware.LoggerWithConfig(lconfig))
+	group := e.Group("/api")
+
 	connStr := "user=docker database=docker host=0.0.0.0 port=5432 password=docker sslmode=disable"
 
-	db := database.Connect(connStr, 70) // panic
-	defer db.Close()                    // panic
-	defer func() { database.DropTables(db) }()
+	db := database.Connect(connStr, 100) // panic
+	defer db.Close()                     // panic
+	defer func() { database.TruncTables(db) }()
 
 	forumHandlers := delivery.CreateForumHandlerManager(db)
 	postHandlers := delivery.CreatePostHandlerManager(db)
 	threadHandlers := delivery.CreateThreadHandlerManager(db)
 	userHandlers := delivery.CreateUserHandlerManager(db)
 	serviceHandlers := delivery.CreateServiceHandlerManager(db)
+
 	{ // forum handlers
-		forumRouter := router.Group("/forum")
-		forumRouter.POST("/create",
-			logs.AccessLog(mv.ContentTypeAppJson(forumHandlers.Create())))
-		forumRouter.POST("/{slug}/create",
-			logs.AccessLog(mv.ContentTypeAppJson(forumHandlers.CreateThread())))
-		forumRouter.GET("/{slug}/details",
-			logs.AccessLog(mv.ContentTypeAppJson(forumHandlers.Details())))
-		forumRouter.GET("/{slug}/threads",
-			logs.AccessLog(mv.ContentTypeAppJson(forumHandlers.Threads())))
-		forumRouter.GET("/{slug}/users",
-			logs.AccessLog(mv.ContentTypeAppJson(forumHandlers.Users())))
+		forumRouter := group.Group("/forum")
+		forumRouter.POST("/create", forumHandlers.Create())
+		forumRouter.POST("/:forum/create", forumHandlers.CreateThread())
+		forumRouter.GET("/:slug/details", forumHandlers.Details())
+		forumRouter.GET("/:slug/threads", forumHandlers.Threads())
+		forumRouter.GET("/:slug/users", forumHandlers.Users())
 	}
 	{ // post handlers
-		postRouter := router.Group("/post")
-		postRouter.GET("/{id}/details",
-			logs.AccessLog(mv.ContentTypeAppJson(postHandlers.Details())))
-		postRouter.POST("/{id}/details",
-			logs.AccessLog(mv.ContentTypeAppJson(postHandlers.Edit())))
+		postRouter := group.Group("/post")
+		postRouter.GET("/:id/details", postHandlers.Details())
+		postRouter.POST("/:id/details", postHandlers.Edit())
 	}
 	{ // service handlers
-		serviceRouter := router.Group("/service")
-		serviceRouter.POST("/clear",
-			logs.AccessLog(mv.ContentTypeAppJson(serviceHandlers.Clear())))
-		serviceRouter.GET("/status",
-			logs.AccessLog(mv.ContentTypeAppJson(serviceHandlers.Status())))
+		serviceRouter := group.Group("/service")
+		serviceRouter.POST("/clear", serviceHandlers.Clear())
+		serviceRouter.GET("/status", serviceHandlers.Status())
 	}
 	{ // thread handlers
-		threadRouter := router.Group("/thread")
-		threadRouter.POST("/{slug_or_id}/create",
-			logs.AccessLog(mv.ContentTypeAppJson(threadHandlers.AddPosts())))
-		threadRouter.GET("/{slug_or_id}/details",
-			logs.AccessLog(mv.ContentTypeAppJson(threadHandlers.Details())))
-		threadRouter.POST("/{slug_or_id}/details",
-			logs.AccessLog(mv.ContentTypeAppJson(threadHandlers.Edit())))
-		threadRouter.GET("/{slug_or_id}/posts",
-			logs.AccessLog(mv.ContentTypeAppJson(threadHandlers.Posts())))
-		threadRouter.POST("/{slug_or_id}/vote",
-			logs.AccessLog(mv.ContentTypeAppJson(threadHandlers.Vote())))
+		threadRouter := group.Group("/thread")
+		threadRouter.POST("/:slug_or_id/create", threadHandlers.AddPosts())
+		threadRouter.GET("/:slug_or_id/details", threadHandlers.Details())
+		threadRouter.POST("/:slug_or_id/details", threadHandlers.Edit())
+		threadRouter.GET("/:slug_or_id/posts", threadHandlers.Posts())
+		threadRouter.POST("/:slug_or_id/vote", threadHandlers.Vote())
 	}
 	{ // user handlers
-		userRouter := router.Group("/user")
-		userRouter.POST("/{nickname}/create",
-			logs.AccessLog(mv.ContentTypeAppJson(userHandlers.Create())))
-		userRouter.GET("/{nickname}/profile",
-			logs.AccessLog(mv.ContentTypeAppJson(userHandlers.Profile())))
-		userRouter.POST("/{nickname}/profile",
-			logs.AccessLog(mv.ContentTypeAppJson(userHandlers.UpdateProfile())))
+		userRouter := group.Group("/user")
+		userRouter.POST("/:nickname/create", userHandlers.Create())
+		userRouter.GET("/:nickname/profile", userHandlers.Profile())
+		userRouter.POST("/:nickname/profile", userHandlers.UpdateProfile())
 	}
 
-	logs.Info("server started on 5000")
-	logs.Fatal(fasthttp.ListenAndServe(":5000", init.Handler))
+	e.Logger.Fatal(e.Start(":5000"))
 }
+
+//func Logs(next echo.HandlerFunc) echo.HandlerFunc {
+//	return func(rwContext echo.Context) error {
+//		var err error
+//		if rwContext.Request().Method == "GET" {
+//			start := time.Now()
+//			err = next(rwContext)
+//			respTime := time.Since(start)
+//			if respTime.Milliseconds() >= 400 {
+//				fmt.Println("MICRO SEC:", respTime.Microseconds(), "\n PATH:", rwContext.Request().URL.Path, "\n METHOD:", rwContext.Request().Method)
+//				fmt.Println(rwContext.QueryParam("sort"))
+//			}
+//		} else {
+//			err = next(rwContext)
+//		}
+//		return err
+//
+//	}
+//}

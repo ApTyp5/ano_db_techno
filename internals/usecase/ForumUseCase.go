@@ -5,14 +5,15 @@ import (
 	"github.com/ApTyp5/new_db_techno/internals/store"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
+	"net/http"
 )
 
 type ForumUseCase interface {
-	Create(forum *models.Forum, err *error) int
-	CreateThread(thread *models.Thread, err *error) int
-	Details(forum *models.Forum, err *error) int
-	Threads(threads *[]*models.Thread, forum *models.Forum, err *error, limit int, since string, desc bool) int
-	Users(users *[]*models.User, forum *models.Forum, err *error, limit int, since string, desc bool) int
+	Create(forum *models.Forum) (int, interface{})
+	CreateThread(thread *models.Thread) (int, interface{})
+	Details(forum *models.Forum) (int, interface{})
+	Threads(threads *[]*models.Thread, forum *models.Forum, limit int, since string, desc bool) (int, interface{})
+	Users(users *[]*models.User, forum *models.Forum, limit int, since string, desc bool) (int, interface{})
 }
 
 type RDBForumUseCase struct {
@@ -29,71 +30,67 @@ func CreateRDBForumUseCase(db *pgx.ConnPool) ForumUseCase {
 	}
 }
 
-func (uc RDBForumUseCase) Create(forum *models.Forum, err *error) int {
+func (uc RDBForumUseCase) Create(forum *models.Forum) (int, interface{}) {
 	prefix := "RDBForumUseCase create"
-
-	if *err = errors.Wrap(uc.fs.SelectBySlug(forum), prefix); *err == nil {
-		return 409
+	if err := errors.Wrap(uc.fs.SelectBySlug(forum), prefix); err == nil {
+		return http.StatusConflict, forum
 	}
-
-	if *err = errors.Wrap(uc.fs.Insert(forum), prefix); *err == nil {
-		return 201
+	if err := errors.Wrap(uc.fs.Insert(forum), prefix); err == nil {
+		return http.StatusCreated, forum
 	}
-
-	return 404
+	return http.StatusNotFound, wrapStrError("Author not found")
 }
 
-func (uc RDBForumUseCase) CreateThread(thread *models.Thread, err *error) int {
+func (uc RDBForumUseCase) CreateThread(thread *models.Thread) (int, interface{}) {
 	prefix := "RDBForumUseCase createThread"
-
 	if thread.Slug != "" {
-		if *err = errors.Wrap(uc.ts.SelectBySlug(thread), prefix); *err == nil {
-			return 409
+		if err := errors.Wrap(uc.ts.SelectBySlug(thread), prefix); err == nil {
+			return http.StatusConflict, thread
 		}
 	}
-
-	if *err = errors.Wrap(uc.ts.Insert(thread), prefix); *err == nil {
-		return 201
+	if err := errors.Wrap(uc.ts.Insert(thread), prefix); err == nil {
+		return http.StatusCreated, thread
 	}
-
-	return 404
+	return http.StatusNotFound, wrapStrError("Author or Forum not found")
 }
 
-func (uc RDBForumUseCase) Details(forum *models.Forum, err *error) int {
+func (uc RDBForumUseCase) Details(forum *models.Forum) (int, interface{}) {
 	prefix := "RDBForumUseCase details"
-	if *err = errors.Wrap(uc.fs.SelectBySlug(forum), prefix); *err == nil {
-		return 200
+	if err := errors.Wrap(uc.fs.SelectBySlug(forum), prefix); err == nil {
+		return http.StatusOK, forum
 	}
 
-	return 404
+	return 404, wrapStrError("Forum not found")
 }
 
-func (uc RDBForumUseCase) Threads(threads *[]*models.Thread, forum *models.Forum, err *error, limit int, since string, desc bool) int {
+func (uc RDBForumUseCase) Threads(threads *[]*models.Thread, forum *models.Forum,
+	limit int, since string, desc bool) (int, interface{}) {
 	prefix := "RDBForumUseCase threads"
 
-	if *err = errors.Wrap(uc.ts.SelectByForum(threads, forum, limit, since, desc), prefix); *err == nil {
+	if err := errors.Wrap(uc.ts.SelectByForum(threads, forum, limit, since, desc), prefix); err == nil {
 		if len(*threads) != 0 {
-			return 200
+			return http.StatusOK, threads
 		}
 	}
 
-	if *err = errors.Wrap(uc.fs.SelectBySlug(forum), prefix); *err == nil {
-		return 200
+	if err := errors.Wrap(uc.fs.SelectBySlug(forum), prefix); err == nil {
+		return http.StatusOK, threads
 	}
 
-	return 404
+	return http.StatusNotFound, wrapStrError("forum not found")
 }
 
-func (uc RDBForumUseCase) Users(users *[]*models.User, forum *models.Forum, err *error, limit int, since string, desc bool) int {
+func (uc RDBForumUseCase) Users(users *[]*models.User, forum *models.Forum,
+	limit int, since string, desc bool) (int, interface{}) {
 	prefix := "RDBForumUseCase users"
 
-	if *err = uc.fs.SelectBySlug(forum); *err != nil {
-		return 404
+	if err := uc.fs.SelectBySlug(forum); err != nil {
+		return http.StatusNotFound, wrapStrError("forum not found")
 	}
 
-	if *err = errors.Wrap(uc.us.SelectByForum(users, forum, limit, since, desc), prefix); *err == nil {
-		return 200
+	if err := errors.Wrap(uc.us.SelectByForum(users, forum, limit, since, desc), prefix); err == nil {
+		return http.StatusOK, users
 	}
 
-	return 404
+	return unknownError()
 }

@@ -11,8 +11,8 @@ import (
 type PostStore interface {
 	Count(amount *uint) error
 	SelectById(post *models.Post) error
-	UpdateById(post *models.Post) error                                     // Edit
-	InsertPostsByThread(thread *models.Thread, posts *[]*models.Post) error // thread.AddPosts
+	UpdateById(post *models.Post) error                                    // Edit
+	InsertPostsByThread(thread *models.Thread, posts *[]models.Post) error // thread.AddPosts
 	// threads.Posts
 	SelectByThreadFlat(posts *[]*models.Post, thread *models.Thread, limit int, since int, desc bool) error
 	// threads.Posts
@@ -78,14 +78,14 @@ func (P PSQLPostStore) UpdateById(post *models.Post) error {
 	return nil
 }
 
-func (P PSQLPostStore) InsertPostsByThread(thread *models.Thread, posts *[]*models.Post) error {
+func (P PSQLPostStore) InsertPostsByThread(thread *models.Thread, posts *[]models.Post) error {
 	tx, err := P.db.Begin()
 	if err != nil {
 		return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id error")
 	}
 	defer tx.Rollback()
 
-	if thread.Id == 0 {
+	if thread.Id < 0 {
 		if err := P.db.QueryRow("SELECT t.id, f.slug FROM threads t JOIN forums f ON t.forum = f.slug WHERE t.slug = $1", thread.Slug).Scan(&thread.Id, &thread.Forum); err != nil {
 			return errors.Wrap(err, "PSQLPostStore insertPostsByThread select thread id")
 		}
@@ -93,6 +93,10 @@ func (P PSQLPostStore) InsertPostsByThread(thread *models.Thread, posts *[]*mode
 		if err := P.db.QueryRow("SELECT f.slug FROM threads t JOIN forums f ON t.forum = f.slug WHERE t.id = $1", thread.Id).Scan(&thread.Forum); err != nil {
 			return errors.Wrap(err, "PSQLPostStore insertPostsByThread select thread id")
 		}
+	}
+
+	if len(*posts) == 0 {
+		return nil
 	}
 
 	if len(*posts) == 0 {
@@ -130,11 +134,7 @@ func (P PSQLPostStore) SelectByThreadFlat(posts *[]*models.Post, thread *models.
 		From Posts p
 			join Threads t on t.Id = p.Thread
 `
-	if thread.Slug == "" {
-		query += " where t.Id = $1 "
-	} else {
-		query += " where t.Slug = $1 "
-	}
+	query += " where t.Id = $1 "
 
 	if desc {
 		if hasSince {
@@ -155,19 +155,11 @@ func (P PSQLPostStore) SelectByThreadFlat(posts *[]*models.Post, thread *models.
 		rows *pgx.Rows
 		err  error
 	)
-	if thread.Slug == "" {
-		if hasSince {
-			rows, err = P.db.Query(query, thread.Id, limit, since)
-		} else {
-			rows, err = P.db.Query(query, thread.Id, limit)
-		}
 
+	if hasSince {
+		rows, err = P.db.Query(query, thread.Id, limit, since)
 	} else {
-		if hasSince {
-			rows, err = P.db.Query(query, thread.Slug, limit, since)
-		} else {
-			rows, err = P.db.Query(query, thread.Slug, limit)
-		}
+		rows, err = P.db.Query(query, thread.Id, limit)
 	}
 
 	logs.Info("QUERY:\n", query)

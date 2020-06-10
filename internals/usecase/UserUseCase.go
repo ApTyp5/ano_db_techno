@@ -3,15 +3,15 @@ package usecase
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
+	"net/http"
 )
 
 type UserUseCase interface {
-	Create(user *[]*models.User, err *error) int // /user/{nickname}/create
-	Update(user *models.User, err *error) int    // /user/{nickname}/profile
-	Get(user *models.User, err *error) int       // /user/{nickname}/profile
+	Create(user []*models.User) (int, interface{}) // /user/{nickname}/create
+	Update(user *models.User) (int, interface{})   // /user/{nickname}/profile
+	Get(user *models.User) (int, interface{})      // /user/{nickname}/profile
 }
 
 type RDBUserUseCase struct {
@@ -24,40 +24,39 @@ func CreateRDBUserUseCase(db *pgx.ConnPool) UserUseCase {
 	}
 }
 
-func (uc RDBUserUseCase) Create(users *[]*models.User, err *error) int {
+func (uc RDBUserUseCase) Create(users []*models.User) (int, interface{}) {
 	prefix := "RDB users use case create"
 
-	if *err = errors.Wrap(uc.us.Insert((*users)[0]), prefix); *err == nil {
-		return 201
-	}
-	if *err = errors.Wrap(uc.us.SelectByNickNameOrEmail(users), prefix); *err == nil {
-		*err = errors.New("Users with this nick or email exists")
-		return 409
+	if err := errors.Wrap(uc.us.Insert(users[0]), prefix); err == nil {
+		return 201, users[0]
 	}
 
-	return 600
+	if err := errors.Wrap(uc.us.SelectByNickNameOrEmail(&users), prefix); err == nil {
+		return 409, &users
+	}
+
+	return unknownError()
 }
 
-func (uc RDBUserUseCase) Update(user *models.User, err *error) int {
+func (uc RDBUserUseCase) Update(user *models.User) (int, interface{}) {
 	prefix := "RDB user use case update"
 
-	if *err = errors.Wrap(uc.us.UpdateByNickname(user), prefix); *err != nil {
-		logs.Info("ERROR: ", (*err).Error())
-		if *err = errors.Wrap(uc.us.SelectByNickname(user), prefix); *err != nil {
-			return 404
+	if err := errors.Wrap(uc.us.UpdateByNickname(user), prefix); err != nil {
+		if err := errors.Wrap(uc.us.SelectByNickname(user), prefix); err != nil {
+			return http.StatusNotFound, wrapStrError("user with such nick not found")
 		}
-		return 409
+		return http.StatusConflict, wrapStrError("your data conflicts with existing users")
 	}
 
-	return 200
+	return http.StatusOK, user
 }
 
-func (uc RDBUserUseCase) Get(user *models.User, err *error) int {
+func (uc RDBUserUseCase) Get(user *models.User) (int, interface{}) {
 	prefix := "RDB user use case get"
 
-	if *err = errors.Wrap(uc.us.SelectByNickname(user), prefix); *err != nil {
-		return 404
+	if err := errors.Wrap(uc.us.SelectByNickname(user), prefix); err != nil {
+		return http.StatusNotFound, wrapStrError("user with such nick not found")
 	}
 
-	return 200
+	return http.StatusOK, user
 }

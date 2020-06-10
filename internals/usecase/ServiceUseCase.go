@@ -6,11 +6,12 @@ import (
 	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
+	"net/http"
 )
 
 type ServiceUseCase interface {
-	Clear(err *error) int
-	Status(serverStatus *models.Status, err *error) int
+	Clear() (int, interface{})
+	Status(serverStatus *models.Status) (int, interface{})
 }
 
 type RDBServiceUseCase struct {
@@ -23,19 +24,19 @@ func CreateRDBServiceUseCase(db *pgx.ConnPool) ServiceUseCase {
 	}
 }
 
-func (uc RDBServiceUseCase) Clear(err *error) int {
-	if *err = uc.ss.Clear(); *err != nil {
-		logs.Info("service delivery clear", errors.Wrap(*err, "unexpected useCase error"))
-		return 600
+func (uc RDBServiceUseCase) Clear() (int, interface{}) {
+	if err := uc.ss.Clear(); err != nil {
+		logs.Info("service delivery clear", errors.Wrap(err, "unexpected useCase error"))
+		return unknownError()
 	}
-	return 200
+	return http.StatusOK, nil
 }
 
-func (uc RDBServiceUseCase) Status(serverStatus *models.Status, err *error) int {
-	if *err = errors.Wrap(uc.ss.Status(serverStatus), "RDB ServiceUseCase Status"); *err != nil {
-		logs.Error(*err)
-		return 600
+func (uc RDBServiceUseCase) Status(serverStatus *models.Status) (int, interface{}) {
+	if err := errors.Wrap(uc.ss.Status(serverStatus), "RDB ServiceUseCase Status"); err != nil {
+		logs.Error(err)
+		return unknownError()
 	}
 
-	return 200
+	return http.StatusOK, serverStatus
 }

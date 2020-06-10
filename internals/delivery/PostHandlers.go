@@ -1,13 +1,10 @@
 package delivery
 
 import (
-	"github.com/ApTyp5/new_db_techno/internals/delivery/args"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecase"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
-	"github.com/pkg/errors"
-	. "github.com/valyala/fasthttp"
+	. "github.com/labstack/echo"
 	"strings"
 )
 
@@ -20,57 +17,23 @@ func CreatePostHandlerManager(db *pgx.ConnPool) PostHandlerManager {
 }
 
 // /post/{id}/details
-func (m PostHandlerManager) Details() RequestHandler {
+func (m PostHandlerManager) Details() HandlerFunc {
+	return func(c Context) error {
+		postFull := models.PostFull{Post: &models.Post{}}
+		postFull.Post.Id = PathNatural(c, "id")
+		related := c.QueryParam("related")
 
-	return func(ctx *RequestCtx) {
-		var (
-			prefix   = "post details handler:"
-			postFull = models.PostFull{Post: &models.Post{}}
-			err      error
-		)
-		if postFull.Post.Id, err = args.PathInt("id", ctx); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			return
-		}
-
-		related := args.QueryString("related", ctx)
-
-		if ctx.SetStatusCode(m.uc.Details(&postFull, &err, strings.Split(related, ","))); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
-		}
-
-		args.SetBodyInterface(&postFull, ctx)
+		return c.JSON(m.uc.Details(&postFull, strings.Split(related, ",")))
 	}
 }
 
 // /post/{id}/details
-func (m PostHandlerManager) Edit() RequestHandler {
-	return func(ctx *RequestCtx) {
-		var (
-			prefix = "post edit handler:"
-			post   models.Post
-			err    error
-		)
-		if err = args.GetBodyInterface(&post, ctx); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
+func (m PostHandlerManager) Edit() HandlerFunc {
+	return func(c Context) error {
+		post := models.Post{Id: PathNatural(c, "id")}
+		if err := c.Bind(&post); err != nil {
+			return c.JSON(retError(err))
 		}
-
-		if post.Id, err = args.PathInt("id", ctx); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
-		}
-
-		if ctx.SetStatusCode(m.uc.Edit(&post, &err)); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
-		}
-
-		args.SetBodyInterface(&post, ctx)
+		return c.JSON(m.uc.Edit(&post))
 	}
 }

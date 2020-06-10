@@ -33,7 +33,7 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 			and 
 `
 
-	if thread.Slug == "" {
+	if thread.Id >= 0 {
 		query += "Thread = $3;"
 		_, err = P.db.Exec(query, vote.Voice, vote.NickName, thread.Id)
 	} else {
@@ -52,7 +52,7 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 			`
 
 	var row *pgx.Row
-	if thread.Slug == "" {
+	if thread.Id >= 0 {
 		selectQuery += "where th.Id = $1;"
 		row = tx.QueryRow(selectQuery, thread.Id)
 	} else {
@@ -78,7 +78,7 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 	query := `insert into Votes (Author, Thread, Voice)
 				values ($1,`
 
-	if thread.Slug == "" {
+	if thread.Id >= 0 {
 		query += "$2, $3);"
 		_, err = tx.Exec(query, vote.NickName, thread.Id, vote.Voice)
 	} else {
@@ -97,7 +97,7 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 			`
 
 	var row *pgx.Row
-	if thread.Slug == "" {
+	if thread.Id >= 0 {
 		selectQuery += "where th.Id = $1;"
 		row = tx.QueryRow(selectQuery, thread.Id)
 	} else {

@@ -2,13 +2,11 @@ package delivery
 
 import (
 	_const "github.com/ApTyp5/new_db_techno/const"
-	"github.com/ApTyp5/new_db_techno/internals/delivery/args"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecase"
 	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
-	"github.com/pkg/errors"
-	. "github.com/valyala/fasthttp"
+	. "github.com/labstack/echo"
 )
 
 type ThreadHandlerManager struct {
@@ -21,150 +19,79 @@ func CreateThreadHandlerManager(db *pgx.ConnPool) ThreadHandlerManager {
 	}
 }
 
-func (m ThreadHandlerManager) AddPosts() RequestHandler {
-	return func(ctx *RequestCtx) {
-		var (
-			prefix = "thread handler addPosts"
-			posts  = make([]*models.Post, 0, _const.BuffSize)
-			thread models.Thread
-			err    error
-		)
-		if err = args.GetBodyInterface(&posts, ctx); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			return
+func (m ThreadHandlerManager) AddPosts() HandlerFunc {
+	return func(c Context) error {
+		var posts []models.Post
+		thread := models.Thread{
+			Id:   PathNatural(c, "slug_or_id"),
+			Slug: c.Param("slug_or_id"),
 		}
 
-		if thread.Id, err = args.PathInt("slug_or_id", ctx); err != nil {
-			if thread.Slug, err = args.PathString("slug_or_id", ctx); err != nil {
-				logs.Error(errors.Wrap(err, prefix))
-				return
-			}
+		if err := c.Bind(&posts); err != nil {
+			return c.JSON(retError(err))
 		}
 
-		if ctx.SetStatusCode(m.uc.AddPosts(&thread, &posts, &err)); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
-		}
-
-		args.SetBodyInterface(&posts, ctx)
+		return c.JSON(m.uc.AddPosts(&thread, &posts))
 	}
 }
 
-func (m ThreadHandlerManager) Details() RequestHandler {
-	return func(ctx *RequestCtx) {
-		var (
-			prefix = "thread handler details"
-			thread models.Thread
-			err    error
-		)
-		if thread.Id, err = args.PathInt("slug_or_id", ctx); err != nil {
-			if thread.Slug, err = args.PathString("slug_or_id", ctx); err != nil {
-				logs.Error(errors.Wrap(err, prefix))
-				return
-			}
+func (m ThreadHandlerManager) Details() HandlerFunc {
+	return func(c Context) error {
+		thread := models.Thread{
+			Id:   PathNatural(c, "slug_or_id"),
+			Slug: c.Param("slug_or_id"),
 		}
-
-		if ctx.SetStatusCode(m.uc.Details(&thread, &err)); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
-		}
-
-		args.SetBodyInterface(&thread, ctx)
+		return c.JSON(m.uc.Details(&thread))
 	}
 }
 
-func (m ThreadHandlerManager) Edit() RequestHandler {
-	return func(ctx *RequestCtx) {
-		var (
-			prefix = "thread delivery edit:"
-			err    error
-			thread models.Thread
-		)
-		if err = args.GetBodyInterface(&thread, ctx); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			return
+func (m ThreadHandlerManager) Edit() HandlerFunc {
+	return func(c Context) error {
+		thread := models.Thread{
+			Id:   PathNatural(c, "slug_or_id"),
+			Slug: c.Param("slug_or_id"),
 		}
 
-		if thread.Id, err = args.PathInt("slug_or_id", ctx); err != nil {
-			if thread.Slug, err = args.PathString("slug_or_id", ctx); err != nil {
-				logs.Error(errors.Wrap(errors.New("Ошибка приведения к строке"), prefix))
-				return
-			}
+		if err := c.Bind(&thread); err != nil {
+			return c.JSON(retError(err))
 		}
 
-		if ctx.SetStatusCode(m.uc.Edit(&thread, &err)); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
-		}
-
-		args.SetBodyInterface(&thread, ctx)
+		return c.JSON(m.uc.Edit(&thread))
 	}
 }
 
-func (m ThreadHandlerManager) Posts() RequestHandler {
-	return func(ctx *RequestCtx) {
-		var (
-			prefix = "thread delivery posts:"
-			err    error
-			thread models.Thread
-			posts  []*models.Post
-		)
-		if thread.Id, err = args.PathInt("slug_or_id", ctx); err != nil {
-			if thread.Slug, err = args.PathString("slug_or_id", ctx); err != nil {
-				logs.Error(errors.Wrap(errors.New("bad cast to string"), prefix))
-				args.SetBodyError(err, ctx)
-				return
-			}
+func (m ThreadHandlerManager) Posts() HandlerFunc {
+	return func(c Context) error {
+		thread := models.Thread{
+			Id:   PathNatural(c, "slug_or_id"),
+			Slug: c.Param("slug_or_id"),
 		}
 
-		limit := args.QueryInt("limit", ctx)
-		since := args.QueryInt("since", ctx)
-		sort := args.QueryString("sort", ctx)
-		desc := args.QueryBool("desc", ctx)
+		posts := make([]*models.Post, 0, _const.BuffSize)
 
-		posts = make([]*models.Post, 0, _const.BuffSize)
+		limit := QueryNatural(c, "limit")
+		since := QueryNatural(c, "since")
+		sort := c.QueryParam("sort")
+		desc := QueryBool(c, "desc")
 
-		if ctx.SetStatusCode(m.uc.Posts(&posts, &thread, &err, limit, since, sort, desc)); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
-		}
-
-		args.SetBodyInterface(&posts, ctx)
+		return c.JSON(m.uc.Posts(&posts, &thread, limit, since, sort, desc))
 	}
 }
 
-func (m ThreadHandlerManager) Vote() RequestHandler {
-	return func(ctx *RequestCtx) {
-		var (
-			prefix = "thread delivery vote:"
-			err    error
-			thread models.Thread
-			vote   models.Vote
-		)
-		if thread.Id, err = args.PathInt("slug_or_id", ctx); err != nil {
-			if thread.Slug, err = args.PathString("slug_or_id", ctx); err != nil {
-				logs.Error(errors.Wrap(errors.New("bad cast to string"), prefix))
-				args.SetBodyError(err, ctx)
-				return
-			}
+func (m ThreadHandlerManager) Vote() HandlerFunc {
+	return func(c Context) error {
+		thread := models.Thread{
+			Id:   PathNatural(c, "slug_or_id"),
+			Slug: c.Param("slug_or_id"),
 		}
 
-		if err = args.GetBodyInterface(&vote, ctx); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
-		}
+		logs.Info("id: ", thread.Id)
+		vote := models.Vote{}
 
-		if ctx.SetStatusCode(m.uc.Vote(&thread, &vote, &err)); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
-			args.SetBodyError(err, ctx)
-			return
+		if err := c.Bind(&vote); err != nil {
+			return c.JSON(retError(err))
 		}
-
-		args.SetBodyInterface(&thread, ctx)
+		logs.Info("id: ", thread.Id)
+		return c.JSON(m.uc.Vote(&thread, &vote))
 	}
 }
