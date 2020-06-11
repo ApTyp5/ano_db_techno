@@ -8,6 +8,8 @@ CREATE TABLE users (
                        about text NULL
 );
 
+create index on users (nick_name);
+
 CREATE TABLE forums (
                         slug citext PRIMARY KEY ,
                         title text NOT NULL,
@@ -31,8 +33,8 @@ CREATE TABLE threads (
 -- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
 
-create index threads_hash_idx on threads using hash(id);
-create index on	threads using hash(slug) where slug != '';
+-- create index threads_hash_idx on threads using hash(id);
+-- create index on	threads using hash(slug) where slug != '';
 
 CREATE TABLE votes (
                        author citext REFERENCES users(nick_name) NOT NULL ,
@@ -147,13 +149,13 @@ CREATE TRIGGER forum_num_inc AFTER INSERT ON forums FOR EACH ROW EXECUTE PROCEDU
 CREATE TRIGGER user_num_inc AFTER INSERT ON users FOR EACH ROW EXECUTE PROCEDURE user_num_inc();
 
 
-ALTER SYSTEM SET checkpoint_completion_target = '0.9';
-ALTER SYSTEM SET wal_buffers = '6912kB';
-ALTER SYSTEM SET max_worker_processes = '4';
-ALTER SYSTEM SET default_statistics_target = '100';
-ALTER SYSTEM SET random_page_cost = '1.1';
-ALTER SYSTEM SET max_parallel_workers = '4';
-ALTER SYSTEM SET effective_io_concurrency = '200';
-ALTER SYSTEM SET seq_page_cost = '0.1';
-ALTER SYSTEM SET max_parallel_workers_per_gather = '2';
-ALTER SYSTEM SET random_page_cost = '0.1';
+-- ALTER SYSTEM SET checkpoint_completion_target = '0.9';
+-- ALTER SYSTEM SET wal_buffers = '6912kB';
+-- ALTER SYSTEM SET max_worker_processes = '4';
+-- ALTER SYSTEM SET default_statistics_target = '100';
+-- ALTER SYSTEM SET random_page_cost = '1.1';
+-- ALTER SYSTEM SET max_parallel_workers = '4';
+-- ALTER SYSTEM SET effective_io_concurrency = '200';
+-- ALTER SYSTEM SET seq_page_cost = '0.1';
+-- ALTER SYSTEM SET max_parallel_workers_per_gather = '2';
+-- ALTER SYSTEM SET random_page_cost = '0.1';
