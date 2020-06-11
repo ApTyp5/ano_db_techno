@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -85,17 +86,15 @@ func (P PSQLPostStore) InsertPostsByThread(thread *models.Thread, posts *[]model
 	defer tx.Rollback()
 
 	if thread.Id < 0 {
-		if err := P.db.QueryRow("SELECT t.id, f.slug FROM threads t JOIN forums f ON t.forum = f.slug WHERE t.slug = $1", thread.Slug).Scan(&thread.Id, &thread.Forum); err != nil {
+		if err := tx.QueryRow("SELECT id, forum FROM threads WHERE slug = $1",
+			thread.Slug).Scan(&thread.Id, &thread.Forum); err != nil {
 			return errors.Wrap(err, "PSQLPostStore insertPostsByThread select thread id")
 		}
 	} else {
-		if err := P.db.QueryRow("SELECT f.slug FROM threads t JOIN forums f ON t.forum = f.slug WHERE t.id = $1", thread.Id).Scan(&thread.Forum); err != nil {
+		if err := tx.QueryRow("SELECT forum FROM threads WHERE id = $1",
+			thread.Id).Scan(&thread.Forum); err != nil {
 			return errors.Wrap(err, "PSQLPostStore insertPostsByThread select thread id")
 		}
-	}
-
-	if len(*posts) == 0 {
-		return nil
 	}
 
 	if len(*posts) == 0 {
@@ -105,20 +104,25 @@ func (P PSQLPostStore) InsertPostsByThread(thread *models.Thread, posts *[]model
 	stat, err := tx.Prepare("insert_post", "INSERT INTO posts (author, thread, message, parent) values "+
 		"($1, $2, $3, nullif($4, 0))"+
 		"RETURNING id, thread, created, is_edited, message, coalesce(parent, 0)")
+	bt := tx.BeginBatch()
 
 	if err != nil {
 		return errors.Wrap(err, "PSQLPostStore insertPostsByThread prepare")
 	}
 
 	for i := range *posts {
-		var row *pgx.Row
-		row = tx.QueryRow(stat.Name, (*posts)[i].Author, thread.Id, (*posts)[i].Message, (*posts)[i].Parent)
+		bt.Queue(stat.Name, []interface{}{(*posts)[i].Author, thread.Id, (*posts)[i].Message, (*posts)[i].Parent}, nil, nil)
+	}
 
-		if err := row.Scan(&(*posts)[i].Id, &(*posts)[i].Thread, &(*posts)[i].Created,
+	if err := bt.Send(context.Background(), nil); err != nil {
+		return err
+	}
+
+	for i := range *posts {
+		if err := bt.QueryRowResults().Scan(&(*posts)[i].Id, &(*posts)[i].Thread, &(*posts)[i].Created,
 			&(*posts)[i].IsEdited, &(*posts)[i].Message, &(*posts)[i].Parent); err != nil {
-			return errors.Wrap(err, "PSQLPostStore insertPostsByThread's id SCAN error")
+			return err
 		}
-
 		(*posts)[i].Forum = thread.Forum
 	}
 
