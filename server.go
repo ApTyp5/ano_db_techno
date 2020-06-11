@@ -1,19 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"github.com/ApTyp5/new_db_techno/database"
 	"github.com/ApTyp5/new_db_techno/internals/delivery"
 	_ "github.com/jackc/pgx"
 	"github.com/labstack/echo"
+	"time"
 )
 
 func main() {
 	e := echo.New()
-	//e.Logger.SetOutput(humanlog.New(e.Logger.Output()))
-	//lconfig := middleware.LoggerConfig{
-	//	Format: "${time_rfc3339} [ HTTP] ${remote_ip} \"${method} ${uri}\" ${status} (in: ${bytes_in}, out: ${bytes_out}, latency: ${latency_human})\n",
-	//}
-	//e.Use(middleware.LoggerWithConfig(lconfig))
+	e.Use(Logs)
 	group := e.Group("/api")
 
 	connStr := "user=docker database=docker host=0.0.0.0 port=5432 password=docker sslmode=disable"
@@ -64,21 +62,21 @@ func main() {
 	e.Logger.Fatal(e.Start(":5000"))
 }
 
-//func Logs(next echo.HandlerFunc) echo.HandlerFunc {
-//	return func(rwContext echo.Context) error {
-//		var err error
-//		if rwContext.Request().Method == "GET" {
-//			start := time.Now()
-//			err = next(rwContext)
-//			respTime := time.Since(start)
-//			if respTime.Milliseconds() >= 400 {
-//				fmt.Println("MICRO SEC:", respTime.Microseconds(), "\n PATH:", rwContext.Request().URL.Path, "\n METHOD:", rwContext.Request().Method)
-//				fmt.Println(rwContext.QueryParam("sort"))
-//			}
-//		} else {
-//			err = next(rwContext)
-//		}
-//		return err
-//
-//	}
-//}
+func Logs(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(rwContext echo.Context) error {
+		var err error
+		if rwContext.Request().Method == "GET" {
+			start := time.Now()
+			err = next(rwContext)
+			respTime := time.Since(start)
+			if respTime.Milliseconds() >= 400 {
+				fmt.Println("MICRO SEC:", respTime.Microseconds(), "\n PATH:", rwContext.Request().URL.Path, "\n METHOD:", rwContext.Request().Method)
+				fmt.Println(rwContext.QueryParam("sort"))
+			}
+		} else {
+			err = next(rwContext)
+		}
+		return err
+
+	}
+}
