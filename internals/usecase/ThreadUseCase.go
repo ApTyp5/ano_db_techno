@@ -108,30 +108,30 @@ func (uc RDBThreadUseCase) Posts(posts *[]*models.Post, thread *models.Thread,
 
 	if thread.Id >= 0 {
 		if err := errors.Wrap(uc.ts.SelectById(thread), prefix); err != nil {
-			return http.StatusNotFound, wrapStrError("thread not found")
+			return http.StatusNotFound, wrapStrError("thread not found: " + err.Error())
 		}
 	} else {
 		if err := errors.Wrap(uc.ts.SelectBySlug(thread), prefix); err != nil {
-			return http.StatusNotFound, wrapStrError("thread not found")
+			return http.StatusNotFound, wrapStrError("thread not found: " + err.Error())
 		}
 	}
 
 	switch sort {
 	case "tree":
 		if err := errors.Wrap(uc.ps.SelectByThreadTree(posts, thread, limit, since, desc), prefix); err != nil {
-			return http.StatusNotFound, wrapStrError("thread tree not found")
+			return http.StatusNotFound, wrapStrError("thread tree not found: " + err.Error())
 		}
 		return http.StatusOK, posts
 
 	case "parent_tree":
 		if err := errors.Wrap(uc.ps.SelectByThreadParentTree(posts, thread, limit, since, desc), prefix); err != nil {
-			return http.StatusNotFound, wrapStrError("thread parent tree not found")
+			return http.StatusNotFound, wrapStrError("thread parent tree not found: " + err.Error())
 		}
 		return http.StatusOK, posts
 	}
 
 	if err := errors.Wrap(uc.ps.SelectByThreadFlat(posts, thread, limit, since, desc), prefix); err != nil {
-		return http.StatusNotFound, wrapStrError("thread flat not found")
+		return http.StatusNotFound, wrapStrError("thread flat not found: " + err.Error())
 	}
 
 	return http.StatusOK, posts

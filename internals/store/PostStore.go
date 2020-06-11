@@ -252,9 +252,9 @@ func (P PSQLPostStore) SelectByThreadTree(posts *[]*models.Post, thread *models.
 		}
 	} else {
 		if hasSince {
-			rows, err = P.db.Query(query, thread.Id, limit, since)
+			rows, err = P.db.Query(withPart+query, thread.Id, limit, since)
 		} else {
-			rows, err = P.db.Query(query, thread.Id, limit)
+			rows, err = P.db.Query(withPart+query, thread.Id, limit)
 		}
 	}
 

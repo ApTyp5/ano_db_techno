@@ -38,7 +38,6 @@ func (uc RDBPostUseCase) Details(postFull *models.PostFull, related []string) (i
 	}
 
 	for _, str := range related {
-
 		switch str {
 		case "user":
 			postFull.Author = &models.User{NickName: postFull.Post.Author}
@@ -57,8 +56,6 @@ func (uc RDBPostUseCase) Details(postFull *models.PostFull, related []string) (i
 			if err := uc.ts.SelectById(postFull.Thread); err != nil {
 				logs.Error(errors.Wrap(err, "unexpected thread repo error"))
 			}
-		default:
-			logs.Error(errors.New("unexpected related value: " + str))
 		}
 	}
 
