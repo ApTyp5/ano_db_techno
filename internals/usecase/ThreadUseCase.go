@@ -139,14 +139,8 @@ func (uc RDBThreadUseCase) Posts(posts *[]*models.Post, thread *models.Thread,
 
 func (uc RDBThreadUseCase) Vote(thread *models.Thread, vote *models.Vote) (int, interface{}) {
 
-	if err := errors.Wrap(uc.vs.Insert(vote, thread), "RDB thread use case vote"); err != nil {
-		if strings.Index(errors.Cause(err).Error(), "author") >= 0 {
-			return http.StatusNotFound, wrapStrError("author not found")
-		}
-	}
-
-	if err := errors.Wrap(uc.vs.Update(vote, thread), "RDB thread use case vote"); err != nil {
-		return http.StatusNotFound, wrapStrError("thread not found")
+	if err := uc.vs.InsertOrUpdate(vote, thread); err != nil {
+		return http.StatusNotFound, wrapError(err)
 	}
 
 	return http.StatusOK, thread

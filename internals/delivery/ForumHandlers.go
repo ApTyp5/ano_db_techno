@@ -4,7 +4,6 @@ import (
 	_const "github.com/ApTyp5/new_db_techno/const"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecase"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	. "github.com/labstack/echo"
 )
@@ -74,8 +73,6 @@ func (m ForumHandlerManager) Users() HandlerFunc {
 		limit := QueryNatural(c, "limit")
 		since := c.QueryParam("since")
 		desc := QueryBool(c, "desc")
-
-		logs.Info("since: ", since)
 
 		return c.JSON(m.uc.Users(&users, &forum, limit, since, desc))
 	}

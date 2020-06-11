@@ -2,7 +2,6 @@ package store
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strconv"
@@ -162,8 +161,6 @@ func (P PSQLPostStore) SelectByThreadFlat(posts *[]*models.Post, thread *models.
 		rows, err = P.db.Query(query, thread.Id, limit)
 	}
 
-	logs.Info("QUERY:\n", query)
-
 	if err != nil {
 		return errors.Wrap(err, "PostRepo select by thread id flat error: ")
 	}
@@ -239,8 +236,6 @@ func (P PSQLPostStore) SelectByThreadTree(posts *[]*models.Post, thread *models.
 	if limit != 0 {
 		query += " LIMIT $2; "
 	}
-
-	logs.Info("QUERY:\n", withPart+query)
 
 	if hasSlug {
 		if hasSince {
@@ -354,8 +349,6 @@ func (P PSQLPostStore) SelectByThreadParentTree(posts *[]*models.Post, thread *m
 	} else {
 		query += " order by ph.path "
 	}
-
-	logs.Info("QUERY:\n", query)
 
 	if hasSlug {
 		rows, err = P.db.Query(query, thread.Slug, limit)

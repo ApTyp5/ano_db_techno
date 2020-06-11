@@ -3,7 +3,6 @@ package store
 import (
 	"fmt"
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"time"
@@ -42,7 +41,6 @@ func (P PSQLThreadStore) Count(amount *uint) error {
 
 func (P PSQLThreadStore) Insert(thread *models.Thread) error {
 	var row *pgx.Row
-	logs.Info("INSERTING THREAD (fslug): '" + thread.Forum + "';")
 
 	if time.Time.IsZero(thread.Created) {
 		row = P.db.QueryRow(`
@@ -71,8 +69,6 @@ func (P PSQLThreadStore) Insert(thread *models.Thread) error {
 		if err := row.Scan(&thread.Id, &thread.Slug, &thread.Title, &thread.Votes, &thread.Forum); err != nil {
 			return errors.Wrap(err, "PSQLThreadStore Insert")
 		}
-
-		logs.Info("THREAD INSERTED (fslug): '" + thread.Forum + "';")
 
 		return nil
 	}

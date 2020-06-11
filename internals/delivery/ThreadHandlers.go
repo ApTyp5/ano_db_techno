@@ -4,7 +4,6 @@ import (
 	_const "github.com/ApTyp5/new_db_techno/const"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecase"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	. "github.com/labstack/echo"
 )
@@ -85,13 +84,11 @@ func (m ThreadHandlerManager) Vote() HandlerFunc {
 			Slug: c.Param("slug_or_id"),
 		}
 
-		logs.Info("id: ", thread.Id)
 		vote := models.Vote{}
 
 		if err := c.Bind(&vote); err != nil {
 			return c.JSON(retError(err))
 		}
-		logs.Info("id: ", thread.Id)
 		return c.JSON(m.uc.Vote(&thread, &vote))
 	}
 }

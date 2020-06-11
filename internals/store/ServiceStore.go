@@ -2,7 +2,6 @@ package store
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 )
@@ -43,9 +42,5 @@ func (ss PSQLServiceStore) Clear() error {
 		update status set forum_num = 0, user_num = 0, post_num = 0, thread_num = 0;
 `)
 
-	if err != nil {
-		logs.Error(err)
-	}
-
-	return nil
+	return err
 }

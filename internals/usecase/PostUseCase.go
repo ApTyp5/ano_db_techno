@@ -33,8 +33,6 @@ func CreateRDBPostUseCase(db *pgx.ConnPool) PostUseCase {
 func (uc RDBPostUseCase) Details(postFull *models.PostFull, related []string) (int, interface{}) {
 	prefix := "RDBPostUseCase details"
 
-	logs.Info("post id: ", postFull.Post.Id)
-
 	if err := errors.Wrap(uc.ps.SelectById(postFull.Post), prefix); err != nil {
 		return http.StatusNotFound, wrapStrError("post not found")
 	}

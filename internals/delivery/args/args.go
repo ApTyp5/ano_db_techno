@@ -35,6 +35,7 @@ func QueryInt(name string, ctx echo.Context) int {
 		num, err := strconv.ParseInt(strInt, 10, 0)
 		if err != nil {
 			logs.Error(err)
+			return -1
 		}
 
 		return int(num)

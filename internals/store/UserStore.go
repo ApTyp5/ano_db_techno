@@ -2,7 +2,6 @@ package store
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"strconv"
@@ -116,8 +115,6 @@ func (P PSQLUserStore) UpdateByNickname(user *models.User) error {
 }
 
 func (P PSQLUserStore) SelectByNickNameOrEmail(users *[]*models.User) error {
-	logs.Info("ENTRY: ", "EMAIL: ", (*users)[0].Email)
-	logs.Info("ENTRY: ", "Nick: ", (*users)[0].NickName)
 	rows, err := P.db.Query(`
 		select About, Email, full_name, nick_name
 		from Users
@@ -135,7 +132,6 @@ func (P PSQLUserStore) SelectByNickNameOrEmail(users *[]*models.User) error {
 	}
 	(*users)[0] = user
 
-	logs.Info("HORAY")
 	for rows.Next() {
 		user := &models.User{}
 		if err := rows.Scan(&user.About, &user.Email, &user.FullName, &user.NickName); err != nil {
@@ -143,7 +139,6 @@ func (P PSQLUserStore) SelectByNickNameOrEmail(users *[]*models.User) error {
 		}
 		*users = append(*users, user)
 	}
-	logs.Info("HORAY")
 
 	return nil
 }

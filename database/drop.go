@@ -1,7 +1,6 @@
 package database
 
 import (
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 )
 
@@ -21,7 +20,7 @@ drop table if exists Status;
 `)
 
 	if err != nil {
-		logs.Error(err)
+		panic(err)
 	}
 }
 
@@ -35,6 +34,6 @@ truncate table if exists Users;
 truncate table if exists Status;
 `)
 	if err != nil {
-		logs.Error(err)
+		panic(err)
 	}
 }

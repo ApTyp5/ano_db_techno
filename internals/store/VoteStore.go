@@ -7,8 +7,9 @@ import (
 )
 
 type VoteStore interface {
-	Insert(vote *models.Vote, thread *models.Thread) error // thread.Vote
-	Update(vote *models.Vote, thread *models.Thread) error // thread.Vote
+	Insert(vote *models.Vote, thread *models.Thread) error         // thread.Vote
+	Update(vote *models.Vote, thread *models.Thread) error         // thread.Vote
+	InsertOrUpdate(vote *models.Vote, thread *models.Thread) error // thread.Vote
 }
 
 type PSQLVoteStore struct {
@@ -17,6 +18,49 @@ type PSQLVoteStore struct {
 
 func CreatePSQLVoteStore(db *pgx.ConnPool) VoteStore {
 	return PSQLVoteStore{db: db}
+}
+
+func (P PSQLVoteStore) InsertOrUpdate(vote *models.Vote, thread *models.Thread) error {
+	tx, err := P.db.Begin()
+	if err != nil {
+		return errors.Wrap(err, "PSQLVoteStore Update begin")
+	}
+	defer tx.Rollback()
+
+	if err := tx.QueryRow("select nick_name from users where nick_name = $1;", vote.NickName).Scan(&vote.NickName); err != nil {
+		return errors.New("user not exists")
+	}
+
+	if thread.Id >= 0 {
+		if err := tx.QueryRow("select id from threads where id = $1", thread.Id).Scan(&thread.Id); err != nil {
+			return errors.New("thread does not exist")
+		}
+	} else {
+		if err := tx.QueryRow("select id from threads where slug = $1", thread.Slug).Scan(&thread.Id); err != nil {
+			return errors.New("thread does not exist")
+		}
+	}
+
+	if err := tx.QueryRow("select author, thread from votes where author = $1 and thread = $2",
+		vote.NickName, thread.Id).Scan(&vote.NickName, &thread.Id); err != nil {
+		if _, err := tx.Exec("insert into votes (author, thread, voice) values ($1, $2, $3)",
+			vote.NickName, thread.Id, vote.Voice); err != nil {
+			return errors.Wrap(err, "insert")
+		}
+	} else {
+		if _, err := tx.Exec("update votes set voice = $1 where author = $2 and thread = $3",
+			vote.Voice, vote.NickName, thread.Id); err != nil {
+			return errors.Wrap(err, "update")
+		}
+	}
+
+	if err := tx.QueryRow("select author, created, forum, message, id, title, vote_num, slug "+
+		"from threads where id = $1", thread.Id).Scan(&thread.Author, &thread.Created, &thread.Forum,
+		&thread.Message, &thread.Id, &thread.Title, &thread.Votes, &thread.Slug); err != nil {
+		return errors.Wrap(err, "select thread")
+	}
+
+	return tx.Commit()
 }
 
 func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
@@ -35,10 +79,10 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 
 	if thread.Id >= 0 {
 		query += "Thread = $3;"
-		_, err = P.db.Exec(query, vote.Voice, vote.NickName, thread.Id)
+		_, err = tx.Exec(query, vote.Voice, vote.NickName, thread.Id)
 	} else {
 		query += "Thread = (select Id from Threads where Slug = $3);"
-		_, err = P.db.Exec(query, vote.Voice, vote.NickName, thread.Slug)
+		_, err = tx.Exec(query, vote.Voice, vote.NickName, thread.Slug)
 	}
 
 	if err != nil {

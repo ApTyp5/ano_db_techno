@@ -3,10 +3,8 @@ package delivery
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecase"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	. "github.com/labstack/echo"
-	"github.com/pkg/errors"
 )
 
 type UserHandlerManager struct {
@@ -20,15 +18,13 @@ func CreateUserHandlerManager(db *pgx.ConnPool) UserHandlerManager {
 func (m UserHandlerManager) Create() HandlerFunc {
 	return func(c Context) error {
 		var (
-			prefix = "user delivery create"
-			err    error
-			users  = make([]*models.User, 1)
+			err   error
+			users = make([]*models.User, 1)
 		)
 
 		users[0] = &models.User{NickName: c.Param("nickname")}
 
 		if err = c.Bind(users[0]); err != nil {
-			logs.Error(errors.Wrap(err, prefix))
 			return c.JSON(retError(err))
 		}
 
