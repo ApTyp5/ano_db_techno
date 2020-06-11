@@ -45,7 +45,7 @@ func (uc RDBForumUseCase) CreateThread(thread *models.Thread) (int, interface{})
 	prefix := "RDBForumUseCase createThread"
 	if err := errors.Wrap(uc.ts.Insert(thread), prefix); err == nil {
 		return http.StatusCreated, thread
-	} else if err.Error() == "conflict" {
+	} else if errors.Cause(err).Error() == "conflict" {
 		return http.StatusConflict, thread
 	}
 	return http.StatusNotFound, wrapStrError("Author or Forum not found")
