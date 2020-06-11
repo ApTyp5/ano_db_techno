@@ -33,8 +33,8 @@ CREATE TABLE threads (
 -- 	check (Slug ~ $$^(\d|\w|-|_)*(\w|-|_)(\d|\w|-|_)*$$)
 );
 
--- create index threads_hash_idx on threads using hash(id);
--- create index on	threads using hash(slug) where slug != '';
+create index threads_hash_idx on threads using hash(id);
+create index on	threads using hash(slug) where slug != '';
 
 CREATE TABLE votes (
                        author citext REFERENCES users(nick_name) NOT NULL ,
