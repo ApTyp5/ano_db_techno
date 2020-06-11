@@ -35,6 +35,7 @@ CREATE TABLE threads (
 
 create index threads_hash_idx on threads using hash(id);
 create index on	threads using hash(slug) where slug != '';
+create index on threads (created);
 
 CREATE TABLE votes (
                        author citext REFERENCES users(nick_name) NOT NULL ,
@@ -54,6 +55,8 @@ CREATE TABLE posts (
                        message text NOT NULL
 );
 
+create index on posts (created);
+
 CREATE TABLE status (
                         forum_num integer DEFAULT 0,
                         thread_num integer DEFAULT 0,
@@ -70,19 +73,6 @@ begin
     return new;
 end;
 $set_post_is_edited$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION post_num_inc() RETURNS TRIGGER AS $post_num_inc$
-begin
-    update Forums set post_num = post_num + 1
-    where slug = (
-        select forum
-        from Threads t
-        where new.thread = t.id
-    );
-    update Status set post_num = post_num + 1;
-    return new;
-end;
-$post_num_inc$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION thread_num_inc() RETURNS TRIGGER AS $thread_num_inc$
 begin
@@ -140,7 +130,6 @@ end;
 $post_check_parent$ LANGUAGE plpgsql;
 
 CREATE TRIGGER posts_check_parent BEFORE INSERT ON posts FOR EACH ROW EXECUTE PROCEDURE post_check_parent();
-CREATE TRIGGER post_num_inc AFTER INSERT ON postS FOR EACH ROW EXECUTE PROCEDURE  post_num_inc();
 CREATE TRIGGER thread_num_inc AFTER INSERT ON threads FOR EACH ROW EXECUTE PROCEDURE  thread_num_inc();
 CREATE TRIGGER thread_rating_count AFTER INSERT ON votes FOR EACH ROW EXECUTE PROCEDURE  thread_rating_count();
 CREATE TRIGGER thread_rating_recount AFTER UPDATE ON votes FOR EACH ROW EXECUTE PROCEDURE  thread_rating_recount();

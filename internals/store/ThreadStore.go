@@ -40,10 +40,25 @@ func (P PSQLThreadStore) Count(amount *uint) error {
 }
 
 func (P PSQLThreadStore) Insert(thread *models.Thread) error {
+	tx, err := P.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	if thread.Slug != "" {
+		if err := tx.QueryRow("select t.Id, t.author, t.Forum, t.Created, t.Message, t.Title, t.vote_num, t.Slug"+
+			" from Threads t where t.Slug = $1; ", thread.Slug).Scan(&thread.Id, &thread.Author, &thread.Forum,
+			&thread.Created, &thread.Message, &thread.Title, &thread.Votes, &thread.Slug); err == nil {
+			return errors.New("conflict")
+		}
+	}
+
 	var row *pgx.Row
 
 	if time.Time.IsZero(thread.Created) {
-		row = P.db.QueryRow(`
+		row = tx.QueryRow(`
 		insert into Threads (Author, Forum, Message, Slug, Title) values 
 			($1, (SELECT slug from forums where forums.slug = $2), $3, (coalesce(nullif($4, ''))), $5)
 		returning Id, (coalesce(Slug, '')), Title, vote_num, Created, Forum;
@@ -53,9 +68,9 @@ func (P PSQLThreadStore) Insert(thread *models.Thread) error {
 			return errors.Wrap(err, "PSQLThreadStore Insert")
 		}
 
-		return nil
+		return tx.Commit()
 	} else {
-		row = P.db.QueryRow(`
+		row = tx.QueryRow(`
 		insert into Threads (Author, Forum, Message, Slug, Title, Created) values (
 			$1, 
 			(SELECT slug from forums where forums.slug = $2),
@@ -70,7 +85,7 @@ func (P PSQLThreadStore) Insert(thread *models.Thread) error {
 			return errors.Wrap(err, "PSQLThreadStore Insert")
 		}
 
-		return nil
+		return tx.Commit()
 	}
 }
 

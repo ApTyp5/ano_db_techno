@@ -43,13 +43,10 @@ func (uc RDBForumUseCase) Create(forum *models.Forum) (int, interface{}) {
 
 func (uc RDBForumUseCase) CreateThread(thread *models.Thread) (int, interface{}) {
 	prefix := "RDBForumUseCase createThread"
-	if thread.Slug != "" {
-		if err := errors.Wrap(uc.ts.SelectBySlug(thread), prefix); err == nil {
-			return http.StatusConflict, thread
-		}
-	}
 	if err := errors.Wrap(uc.ts.Insert(thread), prefix); err == nil {
 		return http.StatusCreated, thread
+	} else if err.Error() == "conflict" {
+		return http.StatusConflict, thread
 	}
 	return http.StatusNotFound, wrapStrError("Author or Forum not found")
 }
