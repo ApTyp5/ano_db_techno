@@ -77,6 +77,5 @@ func Logs(next echo.HandlerFunc) echo.HandlerFunc {
 			err = next(rwContext)
 		}
 		return err
-
 	}
 }

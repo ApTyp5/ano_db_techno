@@ -34,4 +34,5 @@ USER root
 
 COPY --from=builder ./build .
 COPY ./database/create.sql /assets/db/postgres/base.sql
+COPY ./tech-db-forum .
 CMD service postgresql start && psql -h localhost -U docker -d docker -p 5432 -a  -f  ./create.sql && ./server
