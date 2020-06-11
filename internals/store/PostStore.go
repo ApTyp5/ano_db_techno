@@ -115,7 +115,7 @@ func (P PSQLPostStore) InsertPostsByThread(thread *models.Thread, posts *[]model
 	}
 
 	bt.Queue("update forums set post_num = post_num + $1 where slug = $2", []interface{}{len(*posts), thread.Forum}, nil, nil)
-	bt.Queue("update status set post_num = post_num + 1", nil, nil, nil)
+	bt.Queue("update status set post_num = post_num + $1", []interface{}{len(*posts)}, nil, nil)
 
 	if err := bt.Send(context.Background(), nil); err != nil {
 		return err
