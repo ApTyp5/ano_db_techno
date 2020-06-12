@@ -1,18 +1,18 @@
-package delivery
+package deliveries
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/internals/usecase"
+	"github.com/ApTyp5/new_db_techno/internals/usecases"
 	"github.com/jackc/pgx"
 	. "github.com/labstack/echo"
 )
 
 type UserHandlerManager struct {
-	uc usecase.UserUseCase
+	uc usecases.UserUseCase
 }
 
 func CreateUserHandlerManager(db *pgx.ConnPool) UserHandlerManager {
-	return UserHandlerManager{uc: usecase.CreateRDBUserUseCase(db)}
+	return UserHandlerManager{uc: usecases.CreateRDBUserUseCase(db)}
 }
 
 func (m UserHandlerManager) Create() HandlerFunc {

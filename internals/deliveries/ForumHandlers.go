@@ -1,20 +1,20 @@
-package delivery
+package deliveries
 
 import (
 	_const "github.com/ApTyp5/new_db_techno/const"
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/internals/usecase"
+	"github.com/ApTyp5/new_db_techno/internals/usecases"
 	"github.com/jackc/pgx"
 	. "github.com/labstack/echo"
 )
 
 type ForumHandlerManager struct {
-	uc usecase.ForumUseCase
+	uc usecases.ForumUseCase
 }
 
 func CreateForumHandlerManager(db *pgx.ConnPool) ForumHandlerManager {
 	return ForumHandlerManager{
-		uc: usecase.CreateRDBForumUseCase(db),
+		uc: usecases.CreateRDBForumUseCase(db),
 	}
 }
 

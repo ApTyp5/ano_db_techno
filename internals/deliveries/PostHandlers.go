@@ -1,19 +1,19 @@
-package delivery
+package deliveries
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/internals/usecase"
+	"github.com/ApTyp5/new_db_techno/internals/usecases"
 	"github.com/jackc/pgx"
 	. "github.com/labstack/echo"
 	"strings"
 )
 
 type PostHandlerManager struct {
-	uc usecase.PostUseCase
+	uc usecases.PostUseCase
 }
 
 func CreatePostHandlerManager(db *pgx.ConnPool) PostHandlerManager {
-	return PostHandlerManager{uc: usecase.CreateRDBPostUseCase(db)}
+	return PostHandlerManager{uc: usecases.CreateRDBPostUseCase(db)}
 }
 
 // /post/{id}/details

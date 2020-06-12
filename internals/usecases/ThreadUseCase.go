@@ -1,9 +1,8 @@
-package usecase
+package usecases
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/internals/store"
-	"github.com/ApTyp5/new_db_techno/logs"
+	"github.com/ApTyp5/new_db_techno/internals/repositories"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"net/http"
@@ -22,18 +21,18 @@ type ThreadUseCase interface {
 }
 
 type RDBThreadUseCase struct {
-	ts store.ThreadStore
-	ps store.PostStore
-	vs store.VoteStore
-	us store.UserStore
+	ts repositories.ThreadStore
+	ps repositories.PostStore
+	vs repositories.VoteStore
+	us repositories.UserStore
 }
 
 func CreateRDBThreadUseCase(db *pgx.ConnPool) ThreadUseCase {
 	return RDBThreadUseCase{
-		ts: store.CreatePSQLThreadStore(db),
-		ps: store.CreatePSQLPostStore(db),
-		vs: store.CreatePSQLVoteStore(db),
-		us: store.CreatePSQLUserStore(db),
+		ts: repositories.CreatePSQLThreadStore(db),
+		ps: repositories.CreatePSQLPostStore(db),
+		vs: repositories.CreatePSQLVoteStore(db),
+		us: repositories.CreatePSQLUserStore(db),
 	}
 }
 
@@ -41,7 +40,6 @@ func (uc RDBThreadUseCase) AddPosts(thread *models.Thread, posts *[]models.Post)
 	prefix := "RDB thread use case add posts"
 
 	if err := errors.Wrap(uc.ps.InsertPostsByThread(thread, posts), prefix); err != nil {
-		logs.Info("err: ", err)
 		if strings.Index(errors.Cause(err).Error(), "posts_parent") >= 0 ||
 			strings.Index(errors.Cause(err).Error(), "another") >= 0 {
 			return http.StatusConflict, wrapStrError("posts_parent or another conflict")

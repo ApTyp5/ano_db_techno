@@ -1,8 +1,8 @@
-package usecase
+package usecases
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/internals/store"
+	"github.com/ApTyp5/new_db_techno/internals/repositories"
 	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -15,18 +15,18 @@ type PostUseCase interface {
 }
 
 type RDBPostUseCase struct {
-	ps store.PostStore
-	us store.UserStore
-	fs store.ForumStore
-	ts store.ThreadStore
+	ps repositories.PostStore
+	us repositories.UserStore
+	fs repositories.ForumStore
+	ts repositories.ThreadStore
 }
 
 func CreateRDBPostUseCase(db *pgx.ConnPool) PostUseCase {
 	return RDBPostUseCase{
-		ps: store.CreatePSQLPostStore(db),
-		us: store.CreatePSQLUserStore(db),
-		fs: store.CreatePSQLForumStore(db),
-		ts: store.CreatePSQLThreadStore(db),
+		ps: repositories.CreatePSQLPostStore(db),
+		us: repositories.CreatePSQLUserStore(db),
+		fs: repositories.CreatePSQLForumStore(db),
+		ts: repositories.CreatePSQLThreadStore(db),
 	}
 }
 

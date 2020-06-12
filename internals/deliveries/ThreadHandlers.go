@@ -1,20 +1,20 @@
-package delivery
+package deliveries
 
 import (
 	_const "github.com/ApTyp5/new_db_techno/const"
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/internals/usecase"
+	"github.com/ApTyp5/new_db_techno/internals/usecases"
 	"github.com/jackc/pgx"
 	. "github.com/labstack/echo"
 )
 
 type ThreadHandlerManager struct {
-	uc usecase.ThreadUseCase
+	uc usecases.ThreadUseCase
 }
 
 func CreateThreadHandlerManager(db *pgx.ConnPool) ThreadHandlerManager {
 	return ThreadHandlerManager{
-		uc: usecase.CreateRDBThreadUseCase(db),
+		uc: usecases.CreateRDBThreadUseCase(db),
 	}
 }
 

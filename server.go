@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/ApTyp5/new_db_techno/database"
-	"github.com/ApTyp5/new_db_techno/internals/delivery"
+	"github.com/ApTyp5/new_db_techno/internals/deliveries"
 	_ "github.com/jackc/pgx"
 	"github.com/labstack/echo"
 	"time"
@@ -20,11 +20,11 @@ func main() {
 	defer db.Close()                     // panic
 	defer func() { database.TruncTables(db) }()
 
-	forumHandlers := delivery.CreateForumHandlerManager(db)
-	postHandlers := delivery.CreatePostHandlerManager(db)
-	threadHandlers := delivery.CreateThreadHandlerManager(db)
-	userHandlers := delivery.CreateUserHandlerManager(db)
-	serviceHandlers := delivery.CreateServiceHandlerManager(db)
+	forumHandlers := deliveries.CreateForumHandlerManager(db)
+	postHandlers := deliveries.CreatePostHandlerManager(db)
+	threadHandlers := deliveries.CreateThreadHandlerManager(db)
+	userHandlers := deliveries.CreateUserHandlerManager(db)
+	serviceHandlers := deliveries.CreateServiceHandlerManager(db)
 
 	{ // forum handlers
 		forumRouter := group.Group("/forum")

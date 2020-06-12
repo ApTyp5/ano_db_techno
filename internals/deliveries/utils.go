@@ -1,4 +1,4 @@
-package delivery
+package deliveries
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"

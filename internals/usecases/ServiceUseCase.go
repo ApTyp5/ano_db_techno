@@ -1,8 +1,8 @@
-package usecase
+package usecases
 
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/internals/store"
+	"github.com/ApTyp5/new_db_techno/internals/repositories"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"net/http"
@@ -14,12 +14,12 @@ type ServiceUseCase interface {
 }
 
 type RDBServiceUseCase struct {
-	ss store.ServiceStore
+	ss repositories.ServiceStore
 }
 
 func CreateRDBServiceUseCase(db *pgx.ConnPool) ServiceUseCase {
 	return RDBServiceUseCase{
-		ss: store.CreatePSQLServiceStore(db),
+		ss: repositories.CreatePSQLServiceStore(db),
 	}
 }
 
