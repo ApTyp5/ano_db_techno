@@ -15,7 +15,7 @@ CREATE TABLE users (
                        about text NULL
 );
 
-create index on users (nick_name);
+create index idx_u_nick on users (nick_name);
 
 CREATE TABLE forums (
                         slug citext PRIMARY KEY ,
@@ -63,7 +63,8 @@ CREATE TABLE posts (
                        message text NOT NULL
 );
 
-create index on posts (created);
+create index on posts (created, id);
+create index on posts ((path[1]));
 
 CREATE TABLE status (
                         forum_num integer DEFAULT 0,
