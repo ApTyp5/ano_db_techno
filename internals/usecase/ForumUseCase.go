@@ -3,6 +3,7 @@ package usecase
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
+	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"net/http"
@@ -81,13 +82,11 @@ func (uc RDBForumUseCase) Users(users *[]*models.User, forum *models.Forum,
 	limit int, since string, desc bool) (int, interface{}) {
 	prefix := "RDBForumUseCase users"
 
-	if err := uc.fs.SelectBySlug(forum); err != nil {
-		return http.StatusNotFound, wrapStrError("forum not found")
-	}
-
 	if err := errors.Wrap(uc.us.SelectByForum(users, forum, limit, since, desc), prefix); err == nil {
 		return http.StatusOK, users
+	} else {
+		logs.Info("error: ", err)
 	}
 
-	return unknownError()
+	return http.StatusNotFound, wrapStrError("forum not found")
 }

@@ -3,6 +3,7 @@ package usecase
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/store"
+	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"net/http"
@@ -40,6 +41,7 @@ func (uc RDBThreadUseCase) AddPosts(thread *models.Thread, posts *[]models.Post)
 	prefix := "RDB thread use case add posts"
 
 	if err := errors.Wrap(uc.ps.InsertPostsByThread(thread, posts), prefix); err != nil {
+		logs.Info("err: ", err)
 		if strings.Index(errors.Cause(err).Error(), "posts_parent") >= 0 ||
 			strings.Index(errors.Cause(err).Error(), "another") >= 0 {
 			return http.StatusConflict, wrapStrError("posts_parent or another conflict")

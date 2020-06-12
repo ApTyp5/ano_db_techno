@@ -24,6 +24,16 @@ func CreatePSQLUserStore(db *pgx.ConnPool) UserStore {
 }
 
 func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum, limit int, since string, desc bool) error {
+	tx, err := P.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := tx.QueryRow("select slug from forums where slug = $1", forum.Slug).Scan(&forum.Slug); err != nil {
+		return errors.New("forum not found")
+	}
+
 	dsc := "ASC"
 	if desc {
 		dsc = "DESC"
@@ -45,22 +55,20 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 
 	query := `
 		select distinct on (nick_name) u.About, u.Email, u.full_name, u.nick_name
-		from Forums f 
-			left join Threads t on f.Slug = t.Forum
+		from Threads t
 			left join Posts p on t.Id = p.Thread
 			join Users u on (u.nick_name = p.Author or u.nick_name = t.Author)
-		where f.Slug = $1 ` + sinc + `
+		where t.forum = $1 ` + sinc + `
 		order by u.nick_name ` + dsc + lmt + ";"
 
 	var (
 		rows *pgx.Rows
-		err  error
 	)
 
 	if since == "" {
-		rows, err = P.db.Query(query, forum.Slug)
+		rows, err = tx.Query(query, forum.Slug)
 	} else {
-		rows, err = P.db.Query(query, forum.Slug, since)
+		rows, err = tx.Query(query, forum.Slug, since)
 	}
 
 	if err != nil {
@@ -77,7 +85,7 @@ func (P PSQLUserStore) SelectByForum(users *[]*models.User, forum *models.Forum,
 		*users = append(*users, user)
 	}
 
-	return nil
+	return tx.Commit()
 }
 
 func (P PSQLUserStore) Insert(user *models.User) error {

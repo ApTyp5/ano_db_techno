@@ -63,18 +63,18 @@ func main() {
 }
 
 func Logs(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(rwContext echo.Context) error {
+	return func(ctx echo.Context) error {
 		var err error
-		if rwContext.Request().Method == "GET" {
+		if ctx.Request().Method == "GET" {
 			start := time.Now()
-			err = next(rwContext)
+			err = next(ctx)
 			respTime := time.Since(start)
 			if respTime.Milliseconds() >= 400 {
-				fmt.Println("MICRO SEC:", respTime.Microseconds(), "\n PATH:", rwContext.Request().URL.Path, "\n METHOD:", rwContext.Request().Method)
-				fmt.Println(rwContext.QueryParam("sort"))
+				fmt.Println("MICRO SEC:", respTime.Microseconds(), "\n PATH:", ctx.Request().URL.Path, "\n METHOD:", ctx.Request().Method)
+				fmt.Println(ctx.QueryParams())
 			}
 		} else {
-			err = next(rwContext)
+			err = next(ctx)
 		}
 		return err
 	}

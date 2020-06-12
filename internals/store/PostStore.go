@@ -5,7 +5,6 @@ import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
-	"strconv"
 )
 
 type PostStore interface {
@@ -187,75 +186,60 @@ func (P PSQLPostStore) SelectByThreadFlat(posts *[]*models.Post, thread *models.
 
 func (P PSQLPostStore) SelectByThreadTree(posts *[]*models.Post, thread *models.Thread, limit int, since int, desc bool) error {
 	var (
-		hasSince = since >= 0
-		hasSlug  = thread.Slug != ""
-		rows     *pgx.Rows
-		err      error
-		withPart = ""
-		query    = ""
-		initPath = ""
+		hasSince  = since >= 0
+		rows      *pgx.Rows
+		err       error
+		query     = ""
+		sincePath = ""
 	)
 
-	withPart += `
-			with recursive ph as (
-				select Array [p.Id] as path, p.Id, 0 
-				from posts p
-				`
-
-	if hasSlug {
-		withPart += " join threads t on p.thread = t.Id " +
-			" where p.Parent is null and t.Slug = $1 "
-	} else {
-		withPart +=
-			" where p.Parent is null and p.Id = $1 "
+	tx, err := P.db.Begin()
+	if err != nil {
+		return err
 	}
+	defer tx.Rollback()
 
-	withPart += `
-			union all
-				select ph.path || array [p.Id] as path, p.Id, coalesce(p.Parent, 0)
-					from posts p
-			join ph on p.parent = ph.Id
-			)
-				`
-
-	query += `
-			Select p.author, p.Created, t.Forum, p.Id, p.is_edited, p.Message, coalesce(p.Parent, 0), p.Thread
-				From Posts p
-				join ph on p.Id = ph.Id
-				join Threads t on t.Id = p.Thread
-			`
-
-	if hasSince {
-		initPath += " (select path from ph where Id = $3) "
-		if desc {
-			query += " where ph.Path < " + initPath
-		} else {
-			query += " where ph.Path > " + initPath
+	if thread.Id < 0 {
+		if err := tx.QueryRow("select id, forum from threads where slug = $1", thread.Slug).Scan(&thread.Id, &thread.Forum); err != nil {
+			return err
+		}
+	} else {
+		if err := tx.QueryRow("select forum from threads where id = $1", thread.Id).Scan(&thread.Forum); err != nil {
+			return err
 		}
 	}
 
-	if desc {
-		query += " order by ph.Path desc "
+	query += `
+			Select author, Created, Id, is_edited, Message, coalesce(Parent, 0), Thread
+				From Posts
+			`
+
+	if hasSince {
+		sincePath += " (select path from posts where Id = $3) "
+		if desc {
+			query += " where path < " + sincePath
+		} else {
+			query += " where path > " + sincePath
+		}
+		query += " and thread = $1 "
 	} else {
-		query += " order by ph.Path "
+		query += " where thread = $1 "
+	}
+
+	if desc {
+		query += " order by path desc "
+	} else {
+		query += " order by path "
 	}
 
 	if limit != 0 {
 		query += " LIMIT $2; "
 	}
 
-	if hasSlug {
-		if hasSince {
-			rows, err = P.db.Query(withPart+query, thread.Slug, limit, since)
-		} else {
-			rows, err = P.db.Query(withPart+query, thread.Slug, limit)
-		}
+	if hasSince {
+		rows, err = tx.Query(query, thread.Id, limit, since)
 	} else {
-		if hasSince {
-			rows, err = P.db.Query(withPart+query, thread.Id, limit, since)
-		} else {
-			rows, err = P.db.Query(withPart+query, thread.Id, limit)
-		}
+		rows, err = tx.Query(query, thread.Id, limit)
 	}
 
 	if err != nil {
@@ -264,62 +248,51 @@ func (P PSQLPostStore) SelectByThreadTree(posts *[]*models.Post, thread *models.
 	defer rows.Close()
 
 	for rows.Next() {
-		post := &models.Post{}
+		post := &models.Post{Forum: thread.Forum}
 
-		if err := rows.Scan(&post.Author, &post.Created, &post.Forum, &post.Id, &post.IsEdited,
+		if err := rows.Scan(&post.Author, &post.Created, &post.Id, &post.IsEdited,
 			&post.Message, &post.Parent, &post.Thread); err != nil {
 			return errors.Wrap(err, "select by thread id tree scan error")
 		}
 
 		*posts = append(*posts, post)
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (P PSQLPostStore) SelectByThreadParentTree(posts *[]*models.Post, thread *models.Thread, limit int, since int, desc bool) error {
 	var (
 		hasLimit = limit > 0
 		hasSince = since >= 0
-		hasSlug  = thread.Slug != ""
 		rows     *pgx.Rows
 		err      error
 
 		query = ""
 	)
 
-	if hasSince {
-		query += ` 
-			with recursive since as (
-				select id, coalesce(parent, 0) as parent
-				from posts where id = ` + strconv.FormatInt(int64(since), 10) + `
-					union all
-				select p.id, coalesce(p.parent, 0) as parent
-				from since s 
-					join posts p on p.id = s.parent
-			),
-					`
-	} else {
-		query = " with recursive "
+	tx, err := P.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if thread.Id < 0 {
+		if err := tx.QueryRow("select id, forum from threads where slug = $1", thread.Slug).Scan(&thread.Id, &thread.Forum); err != nil {
+			return err
+		}
+	} else if err := tx.QueryRow("select forum from threads where id = $1", thread.Id).Scan(&thread.Forum); err != nil {
+		return err
 	}
 
-	query += `
-		init as (
-			select p.Id
-			from posts p 
-			`
-
-	if hasSlug {
-		query += " join threads t on p.thread = t.id where t.Slug = $1 "
-	} else {
-		query += " where p.thread = $1 "
-	}
-	query += " and p.Parent is null "
+	query += "with init as ( select p.Id from posts p " +
+		" where p.thread = $1 " +
+		" and p.Parent is null "
 
 	if hasSince {
 		if desc {
-			query += " and p.Id < (select id from since where parent = 0)"
+			query += " and id < (select path[1] from posts where id = $3)"
 		} else {
-			query += " and p.Id > (select id from since where parent = 0)"
+			query += " and id > (select path[1] from posts where id = $3)"
 		}
 	}
 
@@ -331,37 +304,23 @@ func (P PSQLPostStore) SelectByThreadParentTree(posts *[]*models.Post, thread *m
 	if hasLimit {
 		query += " limit $2 "
 	}
-	query += "), "
+	query += ")"
 
 	query += `
-		ph as (
-			select array [p.Id] as path, p.Id, coalesce(p.Parent, 0) 
-			from posts p join init on p.id = init.id
-				union all
-			select ph.path || array [p.id] as path, p.id, coalesce(p.parent, 0)
-			from posts p
-				join ph on p.parent = ph.id
-		)
-`
-
-	query += `
-			Select p.Author, p.Created, t.Forum, p.Id, p.is_edited, p.Message, coalesce(p.Parent, 0), p.Thread
-				From ph
-				join Posts p on p.id = ph.id
-				join Threads t on t.Id = p.Thread
+			Select p.Author, p.Created, p.Id, p.is_edited, p.Message, coalesce(p.Parent, 0), p.Thread
+				From init join posts p on init.id = p.path[1]
 			`
 
 	if desc {
-		query += " order by ph.path[1] desc, ph.path[2:]"
+		query += " order by p.path[1] desc, p.path[2:]"
 	} else {
-		query += " order by ph.path "
+		query += " order by p.path "
 	}
 
-	if hasSlug {
-		rows, err = P.db.Query(query, thread.Slug, limit)
-
+	if hasSince {
+		rows, err = tx.Query(query, thread.Id, limit, since)
 	} else {
-		rows, err = P.db.Query(query, thread.Id, limit)
+		rows, err = tx.Query(query, thread.Id, limit)
 	}
 
 	if err != nil {
@@ -370,9 +329,9 @@ func (P PSQLPostStore) SelectByThreadParentTree(posts *[]*models.Post, thread *m
 	defer rows.Close()
 
 	for rows.Next() {
-		post := &models.Post{}
+		post := &models.Post{Forum: thread.Forum}
 
-		if err := rows.Scan(&post.Author, &post.Created, &post.Forum, &post.Id, &post.IsEdited,
+		if err := rows.Scan(&post.Author, &post.Created, &post.Id, &post.IsEdited,
 			&post.Message, &post.Parent, &post.Thread); err != nil {
 			return errors.Wrap(err, "select by thread id tree scan error")
 		}

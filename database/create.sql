@@ -55,6 +55,7 @@ CREATE TABLE votes (
 CREATE TABLE posts (
                        id serial PRIMARY KEY ,
                        parent integer REFERENCES posts(id) DEFAULT NULL,
+                       path integer[],
                        author citext REFERENCES users(nick_name) NOT NULL ,
                        thread integer REFERENCES threads(id) NOT NULL ,
                        created timestamptz NOT NULL DEFAULT now(),
@@ -136,6 +137,19 @@ begin
 end;
 $post_check_parent$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION post_set_path() RETURNS TRIGGER AS $post_set_path$
+begin
+    if new.parent is null then
+        new.path = array [new.id];
+        return new;
+    end if;
+
+    new.path = (select path from posts where id = new.parent) || array [new.id];
+    return new;
+end;
+$post_set_path$ LANGUAGE plpgsql;
+
+CREATE TRIGGER post_set_path BEFORE INSERT ON posts FOR EACH ROW EXECUTE PROCEDURE post_set_path();
 CREATE TRIGGER posts_check_parent BEFORE INSERT ON posts FOR EACH ROW EXECUTE PROCEDURE post_check_parent();
 CREATE TRIGGER thread_num_inc AFTER INSERT ON threads FOR EACH ROW EXECUTE PROCEDURE  thread_num_inc();
 CREATE TRIGGER thread_rating_count AFTER INSERT ON votes FOR EACH ROW EXECUTE PROCEDURE  thread_rating_count();
