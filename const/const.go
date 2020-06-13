@@ -1,3 +1,3 @@
 package _const
 
-var BuffSize int = 256
+var BuffSize int = 64

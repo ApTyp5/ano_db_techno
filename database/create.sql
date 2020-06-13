@@ -3,19 +3,17 @@ CREATE EXTENSION IF NOT EXISTS citext;
 
 
 
-DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS users CASCADE ;
 CREATE TABLE users (
-   email citext UNIQUE NOT NULL ,
-   nick_name citext PRIMARY KEY ,
-   full_name text NOT NULL ,
-   about text NULL
+    about text NULL,
+    email citext UNIQUE NOT NULL ,
+    full_name text NOT NULL ,
+    nick_name citext PRIMARY KEY
 );
-DROP INDEX IF EXISTS  users__nick_name__idx;
-CREATE INDEX users__nick_name__idx on users (nick_name);
 
 
 
-DROP TABLE IF EXISTS forums;
+DROP TABLE IF EXISTS forums CASCADE ;
 CREATE TABLE forums (
     slug citext PRIMARY KEY ,
     title text NOT NULL,
@@ -23,12 +21,10 @@ CREATE TABLE forums (
     post_num integer NOT NULL DEFAULT 0,
     thread_num integer NOT NULL DEFAULT 0
 );
-DROP INDEX IF EXISTS forums__slug__idx;
-CREATE INDEX forums__slug__idx ON forums(slug);
 
 
 
-DROP TABLE IF EXISTS threads;
+DROP TABLE IF EXISTS threads CASCADE ;
 CREATE TABLE threads (
     id serial PRIMARY KEY ,
     author citext REFERENCES users(nick_name) NOT NULL ,
@@ -39,14 +35,15 @@ CREATE TABLE threads (
     title text NOT NULL ,
     vote_num integer default 0 NOT NULL
 );
-DROP INDEX IF EXISTS threads__id__idx;
-CREATE INDEX threads__id__idx ON threads(id);
 
 DROP INDEX IF EXISTS threads__slug__idx__not_null;
 CREATE INDEX threads__slug__idx__not_null ON threads(slug) WHERE slug IS NOT NULL ;
 
 DROP INDEX IF EXISTS threads__created__idx;
 CREATE INDEX threads__created__idx ON threads(created);
+
+DROP INDEX IF EXISTS threads__forum__hidx;
+CREATE INDEX threads__forum__hidx ON threads USING hash(forum);
 
 
 
@@ -61,18 +58,24 @@ CREATE TABLE votes (
 
 
 
-DROP TABLE IF EXISTS posts;
+DROP TABLE IF EXISTS posts CASCADE ;
 CREATE TABLE posts (
-    id serial PRIMARY KEY ,
-    path integer[],
-    parent integer REFERENCES posts(id) DEFAULT NULL,
-    forum citext REFERENCES forums(SLUG) NOT NULL ,
     author citext REFERENCES users(nick_name) NOT NULL ,
-    thread integer REFERENCES threads(id) NOT NULL ,
     created timestamptz NOT NULL DEFAULT now(),
+    id serial PRIMARY KEY ,
     is_edited bool DEFAULT FALSE NOT NULL,
-    message text NOT NULL
+    message text NOT NULL,
+    parent integer REFERENCES posts(id) DEFAULT NULL,
+    thread integer REFERENCES threads(id) NOT NULL ,
+    forum citext REFERENCES forums(SLUG) NOT NULL ,
+    path integer[]
 );
+
+DROP INDEX IF EXISTS posts__created__idx;
+CREATE INDEX posts__created__idx ON posts(created);
+
+DROP INDEX IF EXISTS posts__path__idx;
+CREATE INDEX posts__path__idx ON posts(path);
 
 
 
@@ -89,8 +92,9 @@ INSERT INTO status DEFAULT VALUES ;
 
 DROP TABLE IF EXISTS forum_users;
 CREATE TABLE forum_users (
-    forum citext REFERENCES forums(slug),
-    user_nick citext REFERENCES users(nick_name)
+    forum citext REFERENCES forums(slug) ,
+    user_nick citext REFERENCES users(nick_name),
+    primary key (forum, user_nick)
 );
 
 
@@ -253,6 +257,7 @@ begin
     INSERT INTO forum_users (FORUM, USER_NICK)
     VALUES (new.forum, new.author)
     ON CONFLICT DO NOTHING ;
+    return new;
 end;
 $add_forum_user$ LANGUAGE plpgsql;
 
@@ -269,3 +274,188 @@ CREATE TRIGGER add_forum_user
     ON threads
     FOR EACH ROW
 EXECUTE PROCEDURE add_forum_user();
+
+
+
+DROP FUNCTION IF EXISTS select_threads_by_forum(forum citext, lmt integer, snc text, dsc bool);
+CREATE OR REPLACE FUNCTION select_threads_by_forum(fslug citext, lmt integer, snc text, dsc bool)
+    RETURNS SETOF threads AS $$
+declare
+    queryS text;
+begin
+    queryS := 'SELECT id, author, forum, ' ||
+             'created, message, slug, ' ||
+             'title, vote_num ' ||
+             'FROM threads ' ||
+             'WHERE forum = ' || quote_literal(fslug);
+
+    if snc is not null then
+        queryS = queryS || ' and created ';
+        if dsc then
+            queryS = queryS || ' <= ';
+        else
+            queryS = queryS || ' >= ';
+        end if;
+        queryS = queryS || quote_literal(snc);
+    end if;
+
+    queryS = queryS || ' order by created ';
+    if dsc then
+        queryS = queryS || ' desc ';
+    end if;
+
+    if lmt > 0 then
+        queryS = queryS || ' limit ' || lmt;
+    end if;
+
+    return query execute queryS;
+end
+$$ LANGUAGE plpgsql;
+
+
+
+DROP FUNCTION IF EXISTS select_posts_by_thread(threadId integer, lmt integer, snc integer, dsc bool, mode text);
+CREATE OR REPLACE FUNCTION select_posts_by_thread(threadId integer, lmt integer, snc integer, dsc bool, mode text)
+    RETURNS SETOF posts AS $$
+    declare
+        mainPart text;
+        wherePart text;
+        orderPart text;
+    begin
+        -- mode = 1, flag; 2, tree; 3, par_tree
+        mainPart := 'SELECT author, created, id, ' ||
+                    'is_edited, message, coalesce(parent, 0),' ||
+                    'thread, forum, path ' ||
+                    'FROM posts ';
+        wherePart := 'WHERE ';
+        orderPart := 'ORDER BY ';
+
+        if mode = '' or mode = 'flat' then
+            wherePart = wherePart || ' thread = ' || threadId;
+
+            if snc > 0 then
+                wherePart = wherePart || ' and id ';
+                if dsc then
+                    wherePart = wherePart || ' < ';
+                else
+                    wherePart = wherePart || ' > ';
+                end if;
+                wherePart = wherePart || quote_literal(snc);
+            end if;
+
+            orderPart = orderPart || ' created ';
+            if dsc then
+                orderPart = orderPart || ' desc ';
+            end if;
+
+            orderPart = orderPart || ', id ';
+            if dsc then
+                orderPart = orderPart || ' desc ';
+            end if;
+
+            if lmt > 0 then
+                orderPart = orderPart || ' limit ' || lmt;
+            end if;
+        end if;
+
+        if mode = 'tree' then
+            wherePart = wherePart || ' thread = ' || threadId;
+
+            if snc > 0 then
+                wherePart = wherePart || ' and path ';
+                if dsc then
+                    wherePart = wherePart || ' < ';
+                else
+                    wherePart = wherePart || ' > ';
+                end if;
+
+                wherePart = wherePart || '(select path from posts ' ||
+                            'where id = ' || snc || ')';
+            end if;
+
+            orderPart = orderPart || ' path ';
+            if dsc then
+                orderPart = orderPart || ' desc ';
+            end if;
+
+            if lmt > 0 then
+                orderPart = orderPart || ' limit ' || lmt;
+            end if;
+        end if;
+
+        if mode = 'parent_tree' then
+            wherePart = wherePart || 'path[1] in ' ||
+                        '(select path[1] ' ||
+                        'from posts ' ||
+                        'where thread = ' ||
+                        threadId ||
+                        ' and parent is null ';
+            if snc > 0 then
+                if dsc then
+                    wherePart = wherePart || ' and id < ';
+                else
+                    wherePart = wherePart || ' and id > ';
+                end if;
+                wherePart = wherePart ||
+                    '(select path[1] from posts where id = ' ||
+                            snc || ')';
+                end if;
+
+                wherePart = wherePart || ' order by id ';
+                if dsc then
+                    wherePart = wherePart || ' desc ';
+                end if;
+
+                if lmt > 0 then
+                    wherePart = wherePart || ' limit ' || lmt;
+                end if;
+
+                wherePart = wherePart || ')';
+
+                if dsc then
+                    orderPart = orderPart || ' path[1] desc, path[2:] ';
+                else
+                    orderPart = orderPart || ' path ';
+                end if;
+            end if;
+
+        mainPart = mainPart || wherePart || orderPart;
+        return query execute mainPart;
+    end
+$$ LANGUAGE plpgsql;
+
+
+
+DROP FUNCTION IF EXISTS select_users_by_forum(forum citext, dsc bool, lim integer, sinc citext);
+CREATE OR REPLACE FUNCTION select_users_by_forum(forum citext, dsc bool, lim integer, sinc citext)
+    RETURNS SETOF users AS $$
+declare
+    queryS text;
+begin
+    queryS := 'SELECT u.about, u.email, u.full_name, u.nick_name ' ||
+             'from forum_users fu ' ||
+             'join users u on u.nick_name = fu.user_nick ' ||
+             'where fu.forum = ' || quote_literal(forum);
+
+    if sinc <> '' then
+        queryS = queryS || 'and u.nick_name ';
+        if dsc then
+            queryS = queryS || ' < ' ;
+        else
+            queryS = queryS || ' > ';
+        end if;
+        queryS = queryS || quote_literal(sinc);
+    end if;
+
+    queryS = queryS || ' order by u.nick_name ';
+    if dsc then
+        queryS = queryS || ' desc ';
+    end if;
+
+    if lim > 0 then
+        queryS = queryS || ' limit ' || lim;
+    end if;
+
+    return query execute queryS;
+end
+$$ LANGUAGE plpgsql;

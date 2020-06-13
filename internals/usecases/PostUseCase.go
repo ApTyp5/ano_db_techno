@@ -3,7 +3,6 @@ package usecases
 import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/repositories"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
 	"net/http"
@@ -15,25 +14,24 @@ type PostUseCase interface {
 }
 
 type RDBPostUseCase struct {
-	ps repositories.PostStore
-	us repositories.UserStore
-	fs repositories.ForumStore
-	ts repositories.ThreadStore
+	ps repositories.PostRepo
+	us repositories.UserRepo
+	fs repositories.ForumRepo
+	ts repositories.ThreadRepo
 }
 
 func CreateRDBPostUseCase(db *pgx.ConnPool) PostUseCase {
 	return RDBPostUseCase{
-		ps: repositories.CreatePSQLPostStore(db),
-		us: repositories.CreatePSQLUserStore(db),
-		fs: repositories.CreatePSQLForumStore(db),
-		ts: repositories.CreatePSQLThreadStore(db),
+		ps: repositories.CreatePSQLPostRepo(db),
+		us: repositories.CreatePSQLUserRepo(db),
+		fs: repositories.CreatePSQLForumRepo(db),
+		ts: repositories.CreatePSQLThreadRepo(db),
 	}
 }
 
 func (uc RDBPostUseCase) Details(postFull *models.PostFull, related []string) (int, interface{}) {
-	prefix := "RDBPostUseCase details"
 
-	if err := errors.Wrap(uc.ps.SelectById(postFull.Post), prefix); err != nil {
+	if err := uc.ps.SelectById(postFull.Post); err != nil {
 		return http.StatusNotFound, wrapStrError("post not found")
 	}
 
@@ -42,19 +40,20 @@ func (uc RDBPostUseCase) Details(postFull *models.PostFull, related []string) (i
 		case "user":
 			postFull.Author = &models.User{NickName: postFull.Post.Author}
 			if err := uc.us.SelectByNickname(postFull.Author); err != nil {
-				logs.Error(errors.Wrap(err, "unexpected user repo error"))
+				return http.StatusInternalServerError, wrapError(errors.Wrap(err, "user"))
 			}
 		case "forum":
 			postFull.Forum = &models.Forum{}
 			postFull.Forum.Slug = postFull.Post.Forum
 			if err := uc.fs.SelectBySlug(postFull.Forum); err != nil {
-				logs.Error(errors.Wrap(err, "unxepected forum repo error"))
+				return http.StatusInternalServerError, wrapError(errors.Wrap(err, "forum"))
+
 			}
 		case "thread":
 			postFull.Thread = &models.Thread{}
 			postFull.Thread.Id = postFull.Post.Thread
-			if err := uc.ts.SelectById(postFull.Thread); err != nil {
-				logs.Error(errors.Wrap(err, "unexpected thread repo error"))
+			if err := uc.ts.SelectBySlugOrId(postFull.Thread); err != nil {
+				return http.StatusInternalServerError, wrapError(errors.Wrap(err, "thread"))
 			}
 		}
 	}
@@ -63,15 +62,11 @@ func (uc RDBPostUseCase) Details(postFull *models.PostFull, related []string) (i
 }
 
 func (uc RDBPostUseCase) Edit(post *models.Post) (int, interface{}) {
-	if post.Message == "" {
-		if err := errors.Wrap(uc.ps.SelectById(post), "RDBPostUseCase Edit"); err != nil {
-			return http.StatusNotFound, wrapStrError("post not found")
-		}
-		return http.StatusOK, post
+	if err := uc.ps.UpdateById(post); err == pgx.ErrNoRows {
+		return http.StatusNotFound, wrapStrError("post not found")
+	} else if err != nil {
+		return http.StatusInternalServerError, wrapError(err)
 	}
 
-	if err := errors.Wrap(uc.ps.UpdateById(post), "RDBPostUseCase Edit"); err != nil {
-		return http.StatusNotFound, wrapStrError("post not found")
-	}
 	return http.StatusOK, post
 }

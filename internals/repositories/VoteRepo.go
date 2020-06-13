@@ -6,38 +6,38 @@ import (
 	"github.com/pkg/errors"
 )
 
-type VoteStore interface {
+type VoteRepo interface {
 	Insert(vote *models.Vote, thread *models.Thread) error         // thread.Vote
 	Update(vote *models.Vote, thread *models.Thread) error         // thread.Vote
 	InsertOrUpdate(vote *models.Vote, thread *models.Thread) error // thread.Vote
 }
 
-type PSQLVoteStore struct {
+type PSQLVoteRepo struct {
 	db *pgx.ConnPool
 }
 
-func CreatePSQLVoteStore(db *pgx.ConnPool) VoteStore {
-	return PSQLVoteStore{db: db}
+func CreatePSQLVoteRepo(db *pgx.ConnPool) VoteRepo {
+	return PSQLVoteRepo{db: db}
 }
 
-func (P PSQLVoteStore) InsertOrUpdate(vote *models.Vote, thread *models.Thread) error {
-	tx, err := P.db.Begin()
+func (voteRepo PSQLVoteRepo) InsertOrUpdate(vote *models.Vote, thread *models.Thread) error {
+	tx, err := voteRepo.db.Begin()
 	if err != nil {
-		return errors.Wrap(err, "PSQLVoteStore Update begin")
+		return errors.Wrap(err, "PSQLVoteRepo Update begin")
 	}
 	defer tx.Rollback()
 
 	if err := tx.QueryRow("select nick_name from users where nick_name = $1;", vote.NickName).Scan(&vote.NickName); err != nil {
-		return errors.New("user not exists")
+		return pgx.ErrNoRows
 	}
 
 	if thread.Id >= 0 {
 		if err := tx.QueryRow("select id from threads where id = $1", thread.Id).Scan(&thread.Id); err != nil {
-			return errors.New("thread does not exist")
+			return pgx.ErrNoRows
 		}
 	} else {
 		if err := tx.QueryRow("select id from threads where slug = $1", thread.Slug).Scan(&thread.Id); err != nil {
-			return errors.New("thread does not exist")
+			return pgx.ErrNoRows
 		}
 	}
 
@@ -63,10 +63,10 @@ func (P PSQLVoteStore) InsertOrUpdate(vote *models.Vote, thread *models.Thread) 
 	return tx.Commit()
 }
 
-func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
-	tx, err := P.db.Begin()
+func (voteRepo PSQLVoteRepo) Update(vote *models.Vote, thread *models.Thread) error {
+	tx, err := voteRepo.db.Begin()
 	if err != nil {
-		return errors.Wrap(err, "PSQLVoteStore Update begin")
+		return errors.Wrap(err, "PSQLVoteRepo Update begin")
 	}
 
 	defer tx.Rollback()
@@ -86,7 +86,7 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 	}
 
 	if err != nil {
-		return errors.Wrap(err, "PSQLVoteStore Update insert")
+		return errors.Wrap(err, "PSQLVoteRepo Update insert")
 	}
 
 	selectQuery := `
@@ -105,17 +105,17 @@ func (P PSQLVoteStore) Update(vote *models.Vote, thread *models.Thread) error {
 	}
 
 	if err = errors.Wrap(row.Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.Message,
-		&thread.Id, &thread.Title, &thread.Votes, &thread.Slug), "PSQLVoteStore Update"); err != nil {
+		&thread.Id, &thread.Title, &thread.Votes, &thread.Slug), "PSQLVoteRepo Update"); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
-	tx, err := P.db.Begin()
+func (voteRepo PSQLVoteRepo) Insert(vote *models.Vote, thread *models.Thread) error {
+	tx, err := voteRepo.db.Begin()
 	if err != nil {
-		return errors.Wrap(err, "PSQLVoteStore Insert begin")
+		return errors.Wrap(err, "PSQLVoteRepo Insert begin")
 	}
 	defer tx.Rollback()
 
@@ -131,7 +131,7 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 	}
 
 	if err != nil {
-		return errors.Wrap(err, "PSQLVoteStore Insert insert")
+		return errors.Wrap(err, "PSQLVoteRepo Insert insert")
 	}
 
 	selectQuery := `
@@ -150,7 +150,7 @@ func (P PSQLVoteStore) Insert(vote *models.Vote, thread *models.Thread) error {
 	}
 
 	if err = errors.Wrap(row.Scan(&thread.Author, &thread.Created, &thread.Forum, &thread.Message,
-		&thread.Id, &thread.Title, &thread.Votes, &thread.Slug), "PSQLVoteStore Insert"); err != nil {
+		&thread.Id, &thread.Title, &thread.Votes, &thread.Slug), "PSQLVoteRepo Insert"); err != nil {
 		return err
 	}
 

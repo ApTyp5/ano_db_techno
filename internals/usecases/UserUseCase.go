@@ -4,58 +4,71 @@ import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/repositories"
 	"github.com/jackc/pgx"
-	"github.com/pkg/errors"
 	"net/http"
 )
 
 type UserUseCase interface {
-	Create(user []*models.User) (int, interface{}) // /user/{nickname}/create
-	Update(user *models.User) (int, interface{})   // /user/{nickname}/profile
-	Get(user *models.User) (int, interface{})      // /user/{nickname}/profile
+	Create(users []models.User, user *models.User) (int, interface{}) // /user/{nickname}/create
+	Update(user *models.User) (int, interface{})                      // /user/{nickname}/profile
+	Get(user *models.User) (int, interface{})                         // /user/{nickname}/profile
 }
 
 type RDBUserUseCase struct {
-	us repositories.UserStore
+	us repositories.UserRepo
 }
 
 func CreateRDBUserUseCase(db *pgx.ConnPool) UserUseCase {
 	return RDBUserUseCase{
-		us: repositories.CreatePSQLUserStore(db),
+		us: repositories.CreatePSQLUserRepo(db),
 	}
 }
 
-func (uc RDBUserUseCase) Create(users []*models.User) (int, interface{}) {
-	prefix := "RDB users use case create"
-
-	if err := errors.Wrap(uc.us.Insert(users[0]), prefix); err == nil {
-		return 201, users[0]
+func (uc RDBUserUseCase) Create(users []models.User, user *models.User) (int, interface{}) {
+	if err := uc.us.SelectByNickNameOrEmail(&users, user); err != nil {
+		return http.StatusInternalServerError, wrapError(err)
 	}
 
-	if err := errors.Wrap(uc.us.SelectByNickNameOrEmail(&users), prefix); err == nil {
-		return 409, &users
+	if len(users) > 0 {
+		return http.StatusConflict, users
 	}
 
-	return unknownError()
+	if err := uc.us.Insert(user); err != nil {
+		return http.StatusInternalServerError, wrapError(err)
+	}
+
+	return http.StatusCreated, user
 }
 
 func (uc RDBUserUseCase) Update(user *models.User) (int, interface{}) {
-	prefix := "RDB user use case update"
-
-	if err := errors.Wrap(uc.us.UpdateByNickname(user), prefix); err != nil {
-		if err := errors.Wrap(uc.us.SelectByNickname(user), prefix); err != nil {
+	users := make([]models.User, 0)
+	if err := uc.us.SelectByNickNameOrEmail(&users, user); err != nil {
+		if err == pgx.ErrNoRows {
 			return http.StatusNotFound, wrapStrError("user with such nick not found")
 		}
-		return http.StatusConflict, wrapStrError("your data conflicts with existing users")
+		return http.StatusInternalServerError, wrapError(err)
+	}
+
+	if len(users) == 0 {
+		return http.StatusNotFound, wrapStrError("user with such nick not found")
+	}
+
+	if len(users) > 1 {
+		return http.StatusConflict, wrapStrError("your data conflicts with other users")
+	}
+
+	if err := uc.us.UpdateByNickname(user); err != nil {
+		return http.StatusInternalServerError, wrapError(err)
 	}
 
 	return http.StatusOK, user
 }
 
 func (uc RDBUserUseCase) Get(user *models.User) (int, interface{}) {
-	prefix := "RDB user use case get"
-
-	if err := errors.Wrap(uc.us.SelectByNickname(user), prefix); err != nil {
-		return http.StatusNotFound, wrapStrError("user with such nick not found")
+	if err := uc.us.SelectByNickname(user); err != nil {
+		if err == pgx.ErrNoRows {
+			return http.StatusNotFound, wrapStrError("user with such nick not found")
+		}
+		return http.StatusInternalServerError, wrapError(err)
 	}
 
 	return http.StatusOK, user

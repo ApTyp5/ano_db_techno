@@ -4,7 +4,6 @@ import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/repositories"
 	"github.com/jackc/pgx"
-	"github.com/pkg/errors"
 	"net/http"
 )
 
@@ -14,26 +13,25 @@ type ServiceUseCase interface {
 }
 
 type RDBServiceUseCase struct {
-	ss repositories.ServiceStore
+	ss repositories.ServiceRepo
 }
 
 func CreateRDBServiceUseCase(db *pgx.ConnPool) ServiceUseCase {
 	return RDBServiceUseCase{
-		ss: repositories.CreatePSQLServiceStore(db),
+		ss: repositories.CreatePSQLServiceRepo(db),
 	}
 }
 
 func (uc RDBServiceUseCase) Clear() (int, interface{}) {
 	if err := uc.ss.Clear(); err != nil {
-		return unknownError()
+		return http.StatusInternalServerError, wrapError(err)
 	}
 	return http.StatusOK, nil
 }
 
 func (uc RDBServiceUseCase) Status(serverStatus *models.Status) (int, interface{}) {
-	if err := errors.Wrap(uc.ss.Status(serverStatus), "RDB ServiceUseCase Status"); err != nil {
-		return unknownError()
+	if err := uc.ss.Status(serverStatus); err != nil {
+		return http.StatusInternalServerError, wrapError(err)
 	}
-
 	return http.StatusOK, serverStatus
 }

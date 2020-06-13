@@ -1,6 +1,7 @@
 package deliveries
 
 import (
+	_const "github.com/ApTyp5/new_db_techno/const"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/usecases"
 	"github.com/jackc/pgx"
@@ -19,16 +20,15 @@ func (m UserHandlerManager) Create() HandlerFunc {
 	return func(c Context) error {
 		var (
 			err   error
-			users = make([]*models.User, 1)
+			users = make([]models.User, 0, _const.BuffSize)
+			user  = models.User{NickName: c.Param("nickname")}
 		)
 
-		users[0] = &models.User{NickName: c.Param("nickname")}
-
-		if err = c.Bind(users[0]); err != nil {
+		if err = c.Bind(&user); err != nil {
 			return c.JSON(retError(err))
 		}
 
-		return c.JSON(m.uc.Create(users))
+		return c.JSON(m.uc.Create(users, &user))
 	}
 }
 

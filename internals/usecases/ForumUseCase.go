@@ -1,89 +1,136 @@
 package usecases
 
 import (
+	_const "github.com/ApTyp5/new_db_techno/const"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/ApTyp5/new_db_techno/internals/repositories"
 	"github.com/jackc/pgx"
-	"github.com/pkg/errors"
 	"net/http"
 )
 
 type ForumUseCase interface {
 	Create(forum *models.Forum) (int, interface{})
 	CreateThread(thread *models.Thread) (int, interface{})
-	Details(forum *models.Forum) (int, interface{})
-	Threads(threads *[]*models.Thread, forum *models.Forum, limit int, since string, desc bool) (int, interface{})
-	Users(users *[]*models.User, forum *models.Forum, limit int, since string, desc bool) (int, interface{})
+	Details(slug string) (int, interface{})
+	Threads(slug string, limit int, since string, desc bool) (int, interface{})
+	Users(slug string, limit int, since string, desc bool) (int, interface{})
 }
 
 type RDBForumUseCase struct {
-	fs repositories.ForumStore
-	ts repositories.ThreadStore
-	us repositories.UserStore
+	fs repositories.ForumRepo
+	ts repositories.ThreadRepo
+	us repositories.UserRepo
 }
 
 func CreateRDBForumUseCase(db *pgx.ConnPool) ForumUseCase {
 	return RDBForumUseCase{
-		fs: repositories.CreatePSQLForumStore(db),
-		ts: repositories.CreatePSQLThreadStore(db),
-		us: repositories.CreatePSQLUserStore(db),
+		fs: repositories.CreatePSQLForumRepo(db),
+		ts: repositories.CreatePSQLThreadRepo(db),
+		us: repositories.CreatePSQLUserRepo(db),
 	}
 }
 
-func (uc RDBForumUseCase) Create(forum *models.Forum) (int, interface{}) {
-	prefix := "RDBForumUseCase create"
-	if err := errors.Wrap(uc.fs.SelectBySlug(forum), prefix); err == nil {
+func (forumUseCase RDBForumUseCase) Create(forum *models.Forum) (int, interface{}) {
+	var err error
+	if err = forumUseCase.fs.SelectBySlug(forum); err == nil {
 		return http.StatusConflict, forum
 	}
-	if err := errors.Wrap(uc.fs.Insert(forum), prefix); err == nil {
-		return http.StatusCreated, forum
+	if err != pgx.ErrNoRows {
+		return http.StatusInternalServerError, wrapError(err)
 	}
-	return http.StatusNotFound, wrapStrError("Author not found")
+
+	if err = forumUseCase.us.SelectByNickname(&models.User{NickName: forum.User}); err == pgx.ErrNoRows {
+		return http.StatusNotFound, wrapStrError("Author not found")
+	}
+
+	if err != nil {
+		return http.StatusInternalServerError, wrapError(err)
+	}
+
+	if err = forumUseCase.fs.Insert(forum); err != nil {
+		return http.StatusInternalServerError, wrapError(err)
+	}
+
+	return http.StatusCreated, forum
 }
 
-func (uc RDBForumUseCase) CreateThread(thread *models.Thread) (int, interface{}) {
-	prefix := "RDBForumUseCase createThread"
-	if err := errors.Wrap(uc.ts.Insert(thread), prefix); err == nil {
-		return http.StatusCreated, thread
-	} else if errors.Cause(err).Error() == "conflict" {
+func (forumUseCase RDBForumUseCase) CreateThread(thread *models.Thread) (int, interface{}) {
+	var err error
+	if err = forumUseCase.ts.SelectBySlugOrId(thread); err == nil {
 		return http.StatusConflict, thread
 	}
-	return http.StatusNotFound, wrapStrError("Author or Forum not found")
+
+	if err != pgx.ErrNoRows {
+		return http.StatusInternalServerError, wrapError(err)
+	}
+
+	user := &models.User{NickName: thread.Author}
+	if err = forumUseCase.us.SelectByNickname(user); err == pgx.ErrNoRows {
+		return http.StatusNotFound, wrapStrError("user not found")
+	}
+
+	if err != nil {
+		return http.StatusInternalServerError, wrapError(err)
+	}
+
+	if err = forumUseCase.fs.SelectBySlug(&models.Forum{Slug: thread.Forum}); err == pgx.ErrNoRows {
+		return http.StatusNotFound, wrapStrError("forum not found")
+	}
+
+	if err != nil {
+		return http.StatusInternalServerError, wrapError(err)
+	}
+
+	if err := forumUseCase.ts.Insert(thread); err != nil {
+		return http.StatusInternalServerError, wrapError(err)
+	}
+
+	return http.StatusCreated, thread
 }
 
-func (uc RDBForumUseCase) Details(forum *models.Forum) (int, interface{}) {
-	prefix := "RDBForumUseCase details"
-	if err := errors.Wrap(uc.fs.SelectBySlug(forum), prefix); err == nil {
+func (forumUseCase RDBForumUseCase) Details(slug string) (int, interface{}) {
+	forum := &models.Forum{Slug: slug}
+	if err := forumUseCase.fs.SelectBySlug(forum); err == nil {
 		return http.StatusOK, forum
+	} else if err == pgx.ErrNoRows {
+		return http.StatusNotFound, wrapStrError("forum not found")
+	} else {
+		return http.StatusInternalServerError, wrapError(err)
 	}
-
-	return 404, wrapStrError("Forum not found")
 }
 
-func (uc RDBForumUseCase) Threads(threads *[]*models.Thread, forum *models.Forum,
-	limit int, since string, desc bool) (int, interface{}) {
-	prefix := "RDBForumUseCase threads"
-
-	if err := errors.Wrap(uc.ts.SelectByForum(threads, forum, limit, since, desc), prefix); err == nil {
-		if len(*threads) != 0 {
-			return http.StatusOK, threads
+func (forumUseCase RDBForumUseCase) Threads(slug string, limit int, since string, desc bool) (int, interface{}) {
+	forum := &models.Forum{Slug: slug}
+	if err := forumUseCase.fs.SelectBySlug(forum); err != nil {
+		if err == pgx.ErrNoRows {
+			return http.StatusNotFound, wrapStrError("forum not found")
 		}
+		return http.StatusInternalServerError, wrapError(err)
 	}
 
-	if err := errors.Wrap(uc.fs.SelectBySlug(forum), prefix); err == nil {
-		return http.StatusOK, threads
+	threads := make([]models.Thread, 0, _const.BuffSize)
+	if err := forumUseCase.ts.SelectByForum(&threads, forum, limit, since, desc); err != nil {
+		return http.StatusInternalServerError, wrapError(err)
 	}
 
-	return http.StatusNotFound, wrapStrError("forum not found")
+	return http.StatusOK, &threads
 }
 
-func (uc RDBForumUseCase) Users(users *[]*models.User, forum *models.Forum,
-	limit int, since string, desc bool) (int, interface{}) {
-	prefix := "RDBForumUseCase users"
+func (forumUseCase RDBForumUseCase) Users(slug string, limit int, since string, desc bool) (int, interface{}) {
+	forum := &models.Forum{Slug: slug}
 
-	if err := errors.Wrap(uc.us.SelectByForum(users, forum, limit, since, desc), prefix); err == nil {
-		return http.StatusOK, users
+	if err := forumUseCase.fs.SelectBySlug(forum); err != nil {
+
+		if err == pgx.ErrNoRows {
+			return http.StatusNotFound, wrapStrError("forum not found")
+		}
+		return http.StatusInternalServerError, err
 	}
 
-	return http.StatusNotFound, wrapStrError("forum not found")
+	users := make([]models.User, 0, _const.BuffSize)
+	if err := forumUseCase.us.SelectByForum(&users, forum, limit, since, desc); err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	return http.StatusOK, &users
 }

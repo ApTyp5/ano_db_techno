@@ -30,7 +30,7 @@ func (m ThreadHandlerManager) AddPosts() HandlerFunc {
 			return c.JSON(retError(err))
 		}
 
-		return c.JSON(m.uc.AddPosts(&thread, &posts))
+		return c.JSON(m.uc.AddPosts(&thread, posts))
 	}
 }
 
@@ -66,7 +66,7 @@ func (m ThreadHandlerManager) Posts() HandlerFunc {
 			Slug: c.Param("slug_or_id"),
 		}
 
-		posts := make([]*models.Post, 0, _const.BuffSize)
+		posts := make([]models.Post, 0, _const.BuffSize)
 
 		limit := QueryNatural(c, "limit")
 		since := QueryNatural(c, "since")
