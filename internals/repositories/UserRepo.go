@@ -1,8 +1,12 @@
 package repositories
 
 import (
+	"context"
+	"errors"
 	"github.com/ApTyp5/new_db_techno/internals/models"
+	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
+	"strings"
 )
 
 type UserRepo interface {
@@ -11,6 +15,8 @@ type UserRepo interface {
 	SelectByNickname(user *models.User) error                                                          // Get
 	UpdateByNickname(user *models.User) error                                                          // Update
 	SelectByNickNameOrEmail(users *[]models.User, user *models.User) error
+	CheckExistance(nicks map[string]bool) error
+	AddForumUsers(nicks map[string]bool, forum string) error
 }
 
 type PSQLUserRepo struct {
@@ -19,12 +25,58 @@ type PSQLUserRepo struct {
 	insert              *pgx.PreparedStatement
 	selectByNick        *pgx.PreparedStatement
 	updateByNick        *pgx.PreparedStatement
+	addForumUsers       *pgx.PreparedStatement
+}
+
+func (userRepo PSQLUserRepo) AddForumUsers(nicks map[string]bool, forum string) error {
+	bt := userRepo.db.BeginBatch()
+	defer bt.Close()
+
+	logs.Info(len(nicks))
+	for nick := range nicks {
+		logs.Info("nick:", nick)
+		bt.Queue(userRepo.addForumUsers.Name, []interface{}{forum, nick}, nil, nil)
+	}
+
+	if err := bt.Send(context.Background(), nil); err != nil {
+		return err
+	}
+
+	for i := 0; i < len(nicks); i++ {
+		if _, err := bt.ExecResults(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (userRepo PSQLUserRepo) CheckExistance(nicks map[string]bool) error {
+	var quant int
+	nickSlice := make([]string, 0, len(nicks))
+	for k := range nicks {
+		nickSlice = append(nickSlice, "'"+k+"'")
+	}
+
+	_ = userRepo.db.QueryRow("select count(*) from users where nick_name in (" +
+		strings.Join(nickSlice, ",") + ")").Scan(&quant)
+
+	if quant != len(nicks) {
+		return errors.New("author not found")
+	}
+
+	return nil
 }
 
 func CreatePSQLUserRepo(db *pgx.ConnPool) UserRepo {
 	var err error
 	prefix := "user_"
 	repo := PSQLUserRepo{db: db}
+
+	repo.addForumUsers, err = db.Prepare(prefix+"addForumUsers", `
+		insert into forum_users (forum, user_nick) values
+			($1, $2) on conflict do nothing`)
+	panicIfErr(err)
 
 	repo.updateByNick, err = db.Prepare(prefix+"updateByNick", `
 		update Users 

@@ -41,16 +41,27 @@ func (uc RDBThreadUseCase) AddPosts(thread *models.Thread, posts []models.Post) 
 		}
 		return http.StatusInternalServerError, wrapError(err)
 	}
-	if err := uc.ps.InsertPostsByThread(thread, posts); err != nil {
-		if strings.Index(err.Error(), "author") >= 0 {
-			return http.StatusNotFound, wrapStrError("author not found")
-		}
 
+	nicks := make(map[string]bool)
+	for i := range posts {
+		if !nicks[posts[i].Author] {
+			nicks[posts[i].Author] = true
+		}
+	}
+	if err := uc.us.CheckExistance(nicks); err != nil {
+		return http.StatusNotFound, wrapError(err)
+	}
+
+	if err := uc.ps.InsertPostsByThread(thread, posts); err != nil {
 		if strings.Index(err.Error(), "posts_parent") >= 0 ||
 			strings.Index(err.Error(), "another") >= 0 {
 			return http.StatusConflict, wrapStrError("posts_parent or another conflict")
 		}
 
+		return http.StatusInternalServerError, wrapError(err)
+	}
+
+	if err := uc.us.AddForumUsers(nicks, thread.Forum); err != nil {
 		return http.StatusInternalServerError, wrapError(err)
 	}
 

@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"context"
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -110,32 +111,43 @@ func (postRepo PSQLPostRepo) InsertPostsByThread(thread *models.Thread, posts []
 	}
 	defer tx.Rollback()
 
+	bt := tx.BeginBatch()
+	defer bt.Close()
+
 	for i := range posts {
-		if err := tx.QueryRow(
-			postRepo.insertByThread.Name,
-			posts[i].Author,
-			thread.Id,
-			posts[i].Message,
-			posts[i].Parent,
-			thread.Forum).Scan(
+		bt.Queue(postRepo.insertByThread.Name,
+			[]interface{}{
+				posts[i].Author,
+				thread.Id,
+				posts[i].Message,
+				posts[i].Parent,
+				thread.Forum},
+			nil, nil)
+	}
+
+	if err := bt.Send(context.Background(), nil); err != nil {
+		return err
+	}
+
+	for i := range posts {
+		if err := bt.QueryRowResults().Scan(
 			&posts[i].Id,
 			&posts[i].Thread,
 			&posts[i].Created,
 			&posts[i].IsEdited,
 			&posts[i].Message,
 			&posts[i].Parent,
-			&posts[i].Forum,
-		); err != nil {
+			&posts[i].Forum); err != nil {
 			return err
 		}
 	}
 
-	_, err = tx.Exec("update status set post_num = post_num + $1", len(posts))
+	_, err = tx.Exec("update forums set post_num = post_num + $1 where slug = $2", len(posts), thread.Forum)
 	if err != nil {
 		return err
 	}
 
-	_, err = tx.Exec("update forums set post_num = post_num + $1 where slug = $2", len(posts), thread.Forum)
+	_, err = tx.Exec("update status set post_num = post_num + $1", len(posts))
 	if err != nil {
 		return err
 	}

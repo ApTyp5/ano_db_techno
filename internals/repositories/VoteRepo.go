@@ -54,7 +54,7 @@ func (voteRepo PSQLVoteRepo) InsertOrUpdate(vote *models.Vote, thread *models.Th
 		}
 	}
 
-	if err := tx.QueryRow("select author, created, forum, message, id, title, vote_num, slug "+
+	if err := tx.QueryRow("select author, created, forum, message, id, title, vote_num, coalesce(slug, '') "+
 		"from threads where id = $1", thread.Id).Scan(&thread.Author, &thread.Created, &thread.Forum,
 		&thread.Message, &thread.Id, &thread.Title, &thread.Votes, &thread.Slug); err != nil {
 		return errors.Wrap(err, "select thread")

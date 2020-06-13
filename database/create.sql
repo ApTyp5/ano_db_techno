@@ -1,8 +1,6 @@
 CREATE OR REPLACE LANGUAGE plpgsql;
 CREATE EXTENSION IF NOT EXISTS citext;
-
-
-
+insert into forum_users (forum, user_nick) values ($1, $2) on conflict do nothing;
 DROP TABLE IF EXISTS users CASCADE ;
 CREATE TABLE users (
     about text NULL,
@@ -22,6 +20,7 @@ CREATE TABLE forums (
     thread_num integer NOT NULL DEFAULT 0
 );
 
+CREATE INDEX forums__post_num__idx ON forums(post_num);
 
 
 DROP TABLE IF EXISTS threads CASCADE ;
@@ -261,12 +260,12 @@ begin
 end;
 $add_forum_user$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS add_forum_user on posts;
-CREATE TRIGGER add_forum_user
-    AFTER INSERT
-    ON posts
-    FOR EACH ROW
-EXECUTE PROCEDURE add_forum_user();
+-- DROP TRIGGER IF EXISTS add_forum_user on posts;
+-- CREATE TRIGGER add_forum_user
+--     AFTER INSERT
+--     ON posts
+--     FOR EACH ROW
+-- EXECUTE PROCEDURE add_forum_user();
 
 DROP TRIGGER IF EXISTS add_forum_user on threads;
 CREATE TRIGGER add_forum_user
