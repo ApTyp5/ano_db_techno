@@ -69,8 +69,6 @@ CREATE TABLE posts (
     path integer[]
 );
 
-DROP INDEX IF EXISTS posts__created__idx;
-CREATE INDEX posts__created__idx ON posts(thread, created, id);
 
 
 DROP TABLE IF EXISTS status;
@@ -254,6 +252,9 @@ begin
 
 --         drop index if exists posts__path__idx;
         CREate index IF NOT EXISTS posts__path__idx ON posts(path);
+
+--         DROP INDEX IF EXISTS posts__created__idx;
+        CREATE INDEX if not exists posts__created__idx ON posts(thread, created, id);
     end if;
     return new;
 end;
