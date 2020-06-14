@@ -1,6 +1,6 @@
 CREATE OR REPLACE LANGUAGE plpgsql;
 CREATE EXTENSION IF NOT EXISTS citext;
-insert into forum_users (forum, user_nick) values ($1, $2) on conflict do nothing;
+
 DROP TABLE IF EXISTS users CASCADE ;
 CREATE TABLE users (
     about text NULL,
@@ -8,7 +8,6 @@ CREATE TABLE users (
     full_name text NOT NULL ,
     nick_name citext PRIMARY KEY
 );
-
 
 
 DROP TABLE IF EXISTS forums CASCADE ;
@@ -71,12 +70,13 @@ CREATE TABLE posts (
 );
 
 DROP INDEX IF EXISTS posts__created__idx;
-CREATE INDEX posts__created__idx ON posts(created);
+CREATE INDEX posts__created__idx ON posts(thread, created, id);
 
-DROP INDEX IF EXISTS posts__path__idx;
-CREATE INDEX posts__path__idx ON posts(path);
+DROP INDEX IF EXISTS posts__thread_path1_path__idx;
+CREATE INDEX posts__thread_path1_path__idx ON posts(thread, (path[1]), path);
 
-
+drop index if exists posts__path__idx;
+CREate index posts__path__idx ON posts(path);
 
 DROP TABLE IF EXISTS status;
 CREATE TABLE status (
@@ -260,12 +260,6 @@ begin
 end;
 $add_forum_user$ LANGUAGE plpgsql;
 
--- DROP TRIGGER IF EXISTS add_forum_user on posts;
--- CREATE TRIGGER add_forum_user
---     AFTER INSERT
---     ON posts
---     FOR EACH ROW
--- EXECUTE PROCEDURE add_forum_user();
 
 DROP TRIGGER IF EXISTS add_forum_user on threads;
 CREATE TRIGGER add_forum_user
@@ -317,11 +311,13 @@ DROP FUNCTION IF EXISTS select_posts_by_thread(threadId integer, lmt integer, sn
 CREATE OR REPLACE FUNCTION select_posts_by_thread(threadId integer, lmt integer, snc integer, dsc bool, mode text)
     RETURNS SETOF posts AS $$
     declare
+        withPart text;
         mainPart text;
         wherePart text;
         orderPart text;
     begin
         -- mode = 1, flag; 2, tree; 3, par_tree
+        withPart := '';
         mainPart := 'SELECT author, created, id, ' ||
                     'is_edited, message, coalesce(parent, 0),' ||
                     'thread, forum, path ' ||
@@ -383,33 +379,36 @@ CREATE OR REPLACE FUNCTION select_posts_by_thread(threadId integer, lmt integer,
         end if;
 
         if mode = 'parent_tree' then
-            wherePart = wherePart || 'path[1] in ' ||
-                        '(select path[1] ' ||
-                        'from posts ' ||
-                        'where thread = ' ||
-                        threadId ||
-                        ' and parent is null ';
+            withPart = withPart || 'with init as (' ||
+                       'select path[1] as path1 ' ||
+                       'from posts ' ||
+                       'where thread = ' || threadId ||
+                       ' and parent is null ';
+
             if snc > 0 then
                 if dsc then
-                    wherePart = wherePart || ' and id < ';
+                    withPart = withPart || ' and path[1] < ';
                 else
-                    wherePart = wherePart || ' and id > ';
+                    withPart = withPart || ' and path[1] > ';
                 end if;
-                wherePart = wherePart ||
+                withPart = withPart ||
                     '(select path[1] from posts where id = ' ||
                             snc || ')';
                 end if;
 
-                wherePart = wherePart || ' order by id ';
+                withPart = withPart || ' order by path[1] ';
                 if dsc then
-                    wherePart = wherePart || ' desc ';
+                    withPart = withPart || ' desc ';
                 end if;
 
                 if lmt > 0 then
-                    wherePart = wherePart || ' limit ' || lmt;
+                    withPart = withPart || ' limit ' || lmt;
                 end if;
 
-                wherePart = wherePart || ')';
+                withPart = withPart || ')';
+
+                wherePart = wherePart || ' path[1] between ' ||
+                            '(select min(path1) from init) and (select max(path1) from init) ';
 
                 if dsc then
                     orderPart = orderPart || ' path[1] desc, path[2:] ';
@@ -418,7 +417,7 @@ CREATE OR REPLACE FUNCTION select_posts_by_thread(threadId integer, lmt integer,
                 end if;
             end if;
 
-        mainPart = mainPart || wherePart || orderPart;
+        mainPart = withPart || mainPart || wherePart || orderPart;
         return query execute mainPart;
     end
 $$ LANGUAGE plpgsql;
@@ -458,3 +457,20 @@ begin
     return query execute queryS;
 end
 $$ LANGUAGE plpgsql;
+
+ALTER SYSTEM SET max_connections = '100';
+ALTER SYSTEM SET shared_buffers = '256MB';
+ALTER SYSTEM SET effective_cache_size = '768MB';
+ALTER SYSTEM SET maintenance_work_mem = '64MB';
+ALTER SYSTEM SET checkpoint_completion_target = '0.7';
+ALTER SYSTEM SET wal_buffers = '7864kB';
+ALTER SYSTEM SET default_statistics_target = '100';
+ALTER SYSTEM SET random_page_cost = '1.1';
+ALTER SYSTEM SET effective_io_concurrency = '200';
+ALTER SYSTEM SET work_mem = '2621kB';
+ALTER SYSTEM SET min_wal_size = '1GB';
+ALTER SYSTEM SET max_wal_size = '4GB';
+ALTER SYSTEM SET max_worker_processes = '2';
+ALTER SYSTEM SET max_parallel_workers_per_gather = '1';
+ALTER SYSTEM SET max_parallel_workers = '2';
+ALTER SYSTEM SET max_parallel_maintenance_workers = '1';

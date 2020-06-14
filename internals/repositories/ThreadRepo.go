@@ -109,7 +109,7 @@ func (threadRepo PSQLThreadRepo) Insert(thread *models.Thread) error {
 func (threadRepo PSQLThreadRepo) SelectByForum(threads *[]models.Thread, forum *models.Forum,
 	limit int, since string, desc bool) error {
 	rows, err := threadRepo.db.Query("SELECT id, author, forum,"+
-		"created, message, slug,"+
+		"created, message, coalesce(slug, ''),"+
 		"title, vote_num "+
 		"from select_threads_by_forum($1, $2, nullif($3, ''), $4);",
 		forum.Slug, limit, since, desc)

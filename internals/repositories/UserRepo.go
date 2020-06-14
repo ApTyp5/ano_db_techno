@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"github.com/ApTyp5/new_db_techno/internals/models"
-	"github.com/ApTyp5/new_db_techno/logs"
 	"github.com/jackc/pgx"
 	"strings"
 )
@@ -32,9 +31,7 @@ func (userRepo PSQLUserRepo) AddForumUsers(nicks map[string]bool, forum string) 
 	bt := userRepo.db.BeginBatch()
 	defer bt.Close()
 
-	logs.Info(len(nicks))
 	for nick := range nicks {
-		logs.Info("nick:", nick)
 		bt.Queue(userRepo.addForumUsers.Name, []interface{}{forum, nick}, nil, nil)
 	}
 

@@ -70,7 +70,7 @@ func Logs(next echo.HandlerFunc) echo.HandlerFunc {
 			err = next(ctx)
 			respTime := time.Since(start)
 			if respTime.Milliseconds() >= 400 {
-				fmt.Println("MICRO SEC:", respTime.Microseconds(), "\n PATH:", ctx.Request().URL.Path, "\n METHOD:", ctx.Request().Method)
+				fmt.Println("\n\nMILLI SEC:", respTime.Milliseconds(), "\n PATH:", ctx.Request().URL.Path, "\n METHOD:", ctx.Request().Method)
 				fmt.Println(ctx.QueryParams())
 			}
 		} else {
