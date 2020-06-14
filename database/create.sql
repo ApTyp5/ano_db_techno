@@ -69,7 +69,14 @@ CREATE TABLE posts (
     path integer[]
 );
 
+DROP INDEX IF EXISTS posts__thread_path1_path__idx;
+CREATE INDEX IF NOT EXISTS posts__thread_path1_path__idx ON posts(thread, (path[1]), path);
 
+drop index if exists posts__path__idx;
+CREATE INDEX IF NOT EXISTS posts__path__idx ON posts(path);
+
+DROP INDEX IF EXISTS posts__created__idx;
+CREATE INDEX if not exists posts__created__idx ON posts(thread, created, id);
 
 DROP TABLE IF EXISTS status;
 CREATE TABLE status (
@@ -88,6 +95,9 @@ CREATE TABLE forum_users (
     user_nick citext REFERENCES users(nick_name),
     primary key (forum, user_nick)
 );
+
+drop index if exists  forum_users__all;
+create index forum_users__all on forum_users(forum, user_nick);
 
 
 DROP FUNCTION IF EXISTS set_post_is_edited;
@@ -244,29 +254,29 @@ EXECUTE PROCEDURE post_set_path();
 
 
 
-CREATE OR REPLACE FUNCTION service() RETURNS TRIGGER AS $service$
-begin
-    IF (select post_num from status) = 1500000 then
---         DROP INDEX IF EXISTS posts__thread_path1_path__idx;
-        CREATE INDEX IF NOT EXISTS posts__thread_path1_path__idx ON posts(thread, (path[1]), path);
-
---         drop index if exists posts__path__idx;
-        CREate index IF NOT EXISTS posts__path__idx ON posts(path);
-
---         DROP INDEX IF EXISTS posts__created__idx;
-        CREATE INDEX if not exists posts__created__idx ON posts(thread, created, id);
-    end if;
-    return new;
-end;
-$service$ LANGUAGE plpgsql;
-
-
-DROP TRIGGER IF EXISTS service on posts;
-CREATE TRIGGER service
-    AFTER INSERT
-    ON posts
-    FOR EACH ROW
-EXECUTE PROCEDURE service();
+-- CREATE OR REPLACE FUNCTION service() RETURNS TRIGGER AS $service$
+-- begin
+--     IF (select post_num from status) = 1450000 then
+-- --         DROP INDEX IF EXISTS posts__thread_path1_path__idx;
+--         CREATE INDEX CONCURRENTLY IF NOT EXISTS posts__thread_path1_path__idx ON posts(thread, (path[1]), path);
+--
+-- --         drop index if exists posts__path__idx;
+--         CREATE INDEX CONCURRENTLY IF NOT EXISTS posts__path__idx ON posts(path);
+--
+-- --         DROP INDEX IF EXISTS posts__created__idx;
+--         CREATE INDEX CONCURRENTLY if not exists posts__created__idx ON posts(thread, created, id);
+--     end if;
+--     return new;
+-- end;
+-- $service$ LANGUAGE plpgsql;
+--
+--
+-- DROP TRIGGER IF EXISTS service on posts;
+-- CREATE TRIGGER service
+--     AFTER INSERT
+--     ON posts
+--     FOR EACH ROW
+-- EXECUTE PROCEDURE service();
 
 
 

@@ -5,13 +5,14 @@ import (
 	"github.com/ApTyp5/new_db_techno/internals/models"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
+	"sort"
 )
 
 type PostRepo interface {
 	Count(amount *uint) error
 	SelectById(post *models.Post) error
-	UpdateById(post *models.Post) error                                   // Edit
-	InsertPostsByThread(thread *models.Thread, posts []models.Post) error // thread.AddPosts
+	UpdateById(post *models.Post) error                                                          // Edit
+	InsertPostsByThread(thread *models.Thread, posts []models.Post, nicks map[string]bool) error // thread.AddPosts
 	// threads.Posts
 	SelectByThread(posts *[]models.Post, thread *models.Thread, limit int, since int, desc bool, mode string) error
 }
@@ -22,6 +23,7 @@ type PSQLPostRepo struct {
 	selectById     *pgx.PreparedStatement
 	updateById     *pgx.PreparedStatement
 	insertByThread *pgx.PreparedStatement
+	addForumUsers  *pgx.PreparedStatement
 }
 
 func CreatePSQLPostRepo(db *pgx.ConnPool) PostRepo {
@@ -56,6 +58,11 @@ func CreatePSQLPostRepo(db *pgx.ConnPool) PostRepo {
 		($1, $2, $3, nullif($4, 0), $5)
 		RETURNING id, thread, created, is_edited, message, coalesce(parent, 0), forum
 	`)
+	panicIfErr(err)
+
+	repo.addForumUsers, err = db.Prepare(prefix+"addForumUsers", `
+		insert into forum_users (forum, user_nick) values
+			($1, $2) on conflict do nothing`)
 	panicIfErr(err)
 
 	return repo
@@ -100,7 +107,7 @@ func (postRepo PSQLPostRepo) UpdateById(post *models.Post) error {
 		&post.Thread)
 }
 
-func (postRepo PSQLPostRepo) InsertPostsByThread(thread *models.Thread, posts []models.Post) error {
+func (postRepo PSQLPostRepo) InsertPostsByThread(thread *models.Thread, posts []models.Post, nicks map[string]bool) error {
 	if len(posts) == 0 {
 		return nil
 	}
@@ -125,6 +132,20 @@ func (postRepo PSQLPostRepo) InsertPostsByThread(thread *models.Thread, posts []
 			nil, nil)
 	}
 
+	sortNicks := make([]string, 0, len(nicks))
+	for nick := range nicks {
+		sortNicks = append(sortNicks, nick)
+	}
+	sort.Strings(sortNicks)
+
+	for _, nick := range sortNicks {
+		bt.Queue(postRepo.addForumUsers.Name,
+			[]interface{}{
+				thread.Forum,
+				nick,
+			}, nil, nil)
+	}
+
 	if err := bt.Send(context.Background(), nil); err != nil {
 		return err
 	}
@@ -138,6 +159,13 @@ func (postRepo PSQLPostRepo) InsertPostsByThread(thread *models.Thread, posts []
 			&posts[i].Message,
 			&posts[i].Parent,
 			&posts[i].Forum); err != nil {
+			return err
+		}
+	}
+
+	for _ = range nicks {
+		_, err := bt.ExecResults()
+		if err != nil {
 			return err
 		}
 	}
