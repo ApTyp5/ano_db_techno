@@ -72,11 +72,6 @@ CREATE TABLE posts (
 DROP INDEX IF EXISTS posts__created__idx;
 CREATE INDEX posts__created__idx ON posts(thread, created, id);
 
-DROP INDEX IF EXISTS posts__thread_path1_path__idx;
-CREATE INDEX posts__thread_path1_path__idx ON posts(thread, (path[1]), path);
-
-drop index if exists posts__path__idx;
-CREate index posts__path__idx ON posts(path);
 
 DROP TABLE IF EXISTS status;
 CREATE TABLE status (
@@ -248,6 +243,28 @@ CREATE TRIGGER post_set_path
     ON posts
     FOR EACH ROW
 EXECUTE PROCEDURE post_set_path();
+
+
+
+CREATE OR REPLACE FUNCTION service() RETURNS TRIGGER AS $service$
+begin
+    IF (select post_num from status) = 1500000 then
+--         DROP INDEX IF EXISTS posts__thread_path1_path__idx;
+        CREATE INDEX IF NOT EXISTS posts__thread_path1_path__idx ON posts(thread, (path[1]), path);
+
+--         drop index if exists posts__path__idx;
+        CREate index IF NOT EXISTS posts__path__idx ON posts(path);
+    end if;
+end;
+$service$ LANGUAGE plpgsql;
+
+
+DROP TRIGGER IF EXISTS service on posts;
+CREATE TRIGGER service
+    AFTER INSERT
+    ON posts
+    FOR EACH ROW
+EXECUTE PROCEDURE service();
 
 
 
