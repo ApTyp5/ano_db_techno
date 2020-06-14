@@ -11,7 +11,7 @@ import (
 
 func main() {
 	e := echo.New()
-	e.Use(Logs)
+	//e.Use(Logs)
 	group := e.Group("/api")
 
 	connStr := "user=docker database=docker host=0.0.0.0 port=5432 password=docker sslmode=disable"
