@@ -255,6 +255,7 @@ begin
 --         drop index if exists posts__path__idx;
         CREate index IF NOT EXISTS posts__path__idx ON posts(path);
     end if;
+    return new;
 end;
 $service$ LANGUAGE plpgsql;
 
