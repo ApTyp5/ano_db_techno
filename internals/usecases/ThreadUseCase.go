@@ -61,10 +61,6 @@ func (uc RDBThreadUseCase) AddPosts(thread *models.Thread, posts []models.Post) 
 		return http.StatusInternalServerError, wrapError(err)
 	}
 
-	//if err := uc.us.AddForumUsers(nicks, thread.Forum); err != nil {
-	//	return http.StatusInternalServerError, wrapError(err)
-	//}
-
 	return http.StatusCreated, posts
 }
 

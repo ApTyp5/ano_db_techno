@@ -119,7 +119,6 @@ func (postRepo PSQLPostRepo) InsertPostsByThread(thread *models.Thread, posts []
 	defer tx.Rollback()
 
 	bt := tx.BeginBatch()
-	defer bt.Close()
 
 	for i := range posts {
 		bt.Queue(postRepo.insertByThread.Name,
