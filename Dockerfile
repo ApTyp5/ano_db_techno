@@ -7,7 +7,7 @@ RUN go build -v ./server.go
 
 FROM ubuntu:20.04
 
-EXPOSE 5000
+EXPOSE 80
 EXPOSE 5432
 
 ENV DEBIAN_FRONTEND noninteractive

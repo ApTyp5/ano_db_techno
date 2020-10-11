@@ -59,7 +59,7 @@ func main() {
 		userRouter.POST("/:nickname/profile", userHandlers.UpdateProfile())
 	}
 
-	e.Logger.Fatal(e.Start(":5000"))
+	e.Logger.Fatal(e.Start(":80"))
 }
 
 func Logs(next echo.HandlerFunc) echo.HandlerFunc {
